@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #1f2937;
+  color: white;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Canvas styles */
+.canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100%;
+  background-image: radial-gradient(circle, #4b5563 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.canvas-border {
+  border: 2px solid #6b7280;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Tool panel styles */
+.tool-button {
+  @apply w-12 h-12 flex items-center justify-center bg-gray-700 hover:bg-gray-600 border border-gray-600 transition-colors;
+}
+
+.tool-button.active {
+  @apply bg-blue-600 border-blue-500;
+}
+
+/* Panel styles */
+.panel {
+  @apply bg-gray-800 border-b border-gray-700;
+}
+
+.panel-header {
+  @apply px-4 py-2 bg-gray-700 border-b border-gray-600 text-sm font-semibold;
+}
+
+.panel-content {
+  @apply p-4;
+}
+
+/* Form styles */
+.form-input {
+  @apply w-full px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.form-select {
+  @apply w-full px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.form-range {
+  @apply w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: none;
+}
+
+/* Button styles */
+.btn-primary {
+  @apply px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors;
+}
+
+.btn-danger {
+  @apply px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors;
+}
+
+.btn-sm {
+  @apply px-2 py-1 text-sm;
+}
