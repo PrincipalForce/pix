@@ -5,11 +5,16 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': '/src'
-    }
+      "@": "/src",
+    },
   },
   server: {
     host: true,
-    port: 80
-  }
+    port: 5173,
+    strictPort: false,
+  },
+  preview: {
+    host: true,
+    port: 5173,
+  },
 });

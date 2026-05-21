@@ -1,7 +1,5 @@
 import { saveAs } from "file-saver";
-import { writePsd, Psd, Layer as PsdLayer } from "ag-psd";
-import UTIF from "utif";
-import { GIFEncoder, quantize, applyPalette } from "gifenc";
+import type { Psd, Layer as PsdLayer } from "ag-psd";
 import { DocumentState } from "@/types/editor";
 import { compositeDocument } from "./render";
 import { canvasToBlob, createCanvas, ctx2d } from "./canvas";
@@ -52,12 +50,12 @@ export async function exportDocument(
       return;
     }
     case "gif": {
-      const blob = encodeGif(scaled);
+      const blob = await encodeGif(scaled);
       saveAs(blob, name);
       return;
     }
     case "tiff": {
-      const blob = encodeTiff(scaled);
+      const blob = await encodeTiff(scaled);
       saveAs(blob, name);
       return;
     }
@@ -138,7 +136,8 @@ function encodeBmp(canvas: HTMLCanvasElement): Blob {
 
 // --- GIF encoder (single frame) --------------------------------------------
 
-function encodeGif(canvas: HTMLCanvasElement): Blob {
+async function encodeGif(canvas: HTMLCanvasElement): Promise<Blob> {
+  const { GIFEncoder, quantize, applyPalette } = await import("gifenc");
   const w = canvas.width;
   const h = canvas.height;
   const img = ctx2d(canvas).getImageData(0, 0, w, h).data;
@@ -155,11 +154,11 @@ function encodeGif(canvas: HTMLCanvasElement): Blob {
 
 // --- TIFF encoder ----------------------------------------------------------
 
-function encodeTiff(canvas: HTMLCanvasElement): Blob {
+async function encodeTiff(canvas: HTMLCanvasElement): Promise<Blob> {
+  const UTIF = (await import("utif")).default;
   const w = canvas.width;
   const h = canvas.height;
   const img = ctx2d(canvas).getImageData(0, 0, w, h);
-  // UTIF.encodeImage expects RGBA Uint8Array
   const ab = (UTIF as any).encodeImage(img.data, w, h);
   return new Blob([ab], { type: "image/tiff" });
 }
@@ -171,6 +170,7 @@ async function encodePsd(
   scale: number,
   background: string
 ): Promise<Blob> {
+  const { writePsd } = await import("ag-psd");
   const sw = Math.max(1, Math.round(doc.width * scale));
   const sh = Math.max(1, Math.round(doc.height * scale));
 
