@@ -1,190 +1,159 @@
-import React, { useState } from "react";
-import { saveAs } from "file-saver";
+import React, { useMemo, useState } from "react";
+import Modal from "./Modal";
+import { EditorAPI } from "@/hooks/useEditor";
+import { ExportFormat, exportDocument } from "@/lib/export";
+import { compositeDocument } from "@/lib/render";
 
-interface ExportDialogProps {
-  canvas: HTMLCanvasElement | null;
+interface Props {
+  api: EditorAPI;
   onClose: () => void;
 }
 
-export default function ExportDialog({ canvas, onClose }: ExportDialogProps) {
-  const [format, setFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
-  const [quality, setQuality] = useState(0.9);
-  const [filename, setFilename] = useState('edited-image');
-  const [isExporting, setIsExporting] = useState(false);
+const FORMATS: Array<{ id: ExportFormat; name: string; alpha: boolean; quality: boolean; desc: string }> = [
+  { id: "png", name: "PNG", alpha: true, quality: false, desc: "Lossless · transparency · best for screens" },
+  { id: "jpeg", name: "JPEG", alpha: false, quality: true, desc: "Lossy · smaller files · no transparency" },
+  { id: "webp", name: "WebP", alpha: true, quality: true, desc: "Modern · alpha + small files" },
+  { id: "gif", name: "GIF", alpha: true, quality: false, desc: "256 colors · 1-bit transparency" },
+  { id: "bmp", name: "BMP", alpha: false, quality: false, desc: "Uncompressed 24-bit bitmap" },
+  { id: "tiff", name: "TIFF", alpha: true, quality: false, desc: "Lossless · print/archive" },
+  { id: "psd", name: "PSD", alpha: true, quality: false, desc: "Photoshop · keeps layers + masks" },
+];
 
-  const handleExport = async () => {
-    if (!canvas) {
-      alert('No canvas to export');
-      return;
-    }
+export default function ExportDialog({ api, onClose }: Props) {
+  const [format, setFormat] = useState<ExportFormat>("png");
+  const [filename, setFilename] = useState(api.doc.name.replace(/\s+/g, "-").toLowerCase());
+  const [quality, setQuality] = useState(0.92);
+  const [scale, setScale] = useState(1);
+  const [background, setBg] = useState("#ffffff");
+  const [busy, setBusy] = useState(false);
 
-    setIsExporting(true);
-    
-    try {
-      // Create a new canvas with white background for JPEG
-      let exportCanvas = canvas;
-      
-      if (format === 'jpeg') {
-        exportCanvas = document.createElement('canvas');
-        exportCanvas.width = canvas.width;
-        exportCanvas.height = canvas.height;
-        
-        const ctx = exportCanvas.getContext('2d');
-        if (ctx) {
-          // Fill with white background
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
-          
-          // Draw the original canvas
-          ctx.drawImage(canvas, 0, 0);
-        }
-      }
+  const meta = FORMATS.find((f) => f.id === format)!;
+  const previewUrl = useMemo(() => {
+    const c = compositeDocument(api.doc, undefined, { includeBackground: true });
+    return c.toDataURL("image/png");
+  }, [api.doc, api.dirtyTick]);
 
-      // Convert to blob
-      const mimeType = `image/${format}`;
-      
-      exportCanvas.toBlob(
-        (blob) => {
-          if (blob) {
-            const finalFilename = `${filename}.${format}`;
-            saveAs(blob, finalFilename);
-            onClose();
-          } else {
-            alert('Failed to export image');
-          }
-          setIsExporting(false);
-        },
-        mimeType,
-        format === 'jpeg' || format === 'webp' ? quality : undefined
-      );
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('Failed to export image');
-      setIsExporting(false);
-    }
-  };
-
-  const getFileSize = () => {
-    if (!canvas) return 'Unknown';
-    
-    // Rough estimation based on canvas size and format
-    const pixels = canvas.width * canvas.height;
-    let estimatedSize;
-    
-    switch (format) {
-      case 'png':
-        estimatedSize = pixels * 4; // 4 bytes per pixel for RGBA
-        break;
-      case 'jpeg':
-        estimatedSize = pixels * quality * 0.5; // Rough JPEG compression estimate
-        break;
-      case 'webp':
-        estimatedSize = pixels * quality * 0.3; // WebP is more efficient
-        break;
-      default:
-        estimatedSize = pixels * 4;
-    }
-    
-    // Convert to human-readable format
-    if (estimatedSize < 1024) return `${Math.round(estimatedSize)} B`;
-    if (estimatedSize < 1024 * 1024) return `${Math.round(estimatedSize / 1024)} KB`;
-    return `${(estimatedSize / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  const finalSize = useMemo(() => {
+    const w = Math.round(api.doc.width * scale);
+    const h = Math.round(api.doc.height * scale);
+    return `${w} × ${h} px`;
+  }, [api.doc.width, api.doc.height, scale]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full mx-4">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold">Export Image</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl leading-none"
-          >
-            ×
-          </button>
+    <Modal title="Export As" onClose={onClose} width={720}>
+      <div className="export-grid">
+        <div className="export-preview">
+          <div className="preview-frame">
+            <img src={previewUrl} alt="" />
+          </div>
+          <div className="preview-meta">
+            <div>{finalSize}</div>
+            <div className="muted">{api.doc.layers.length} layer{api.doc.layers.length === 1 ? "" : "s"}</div>
+          </div>
         </div>
-
-        <div className="space-y-4">
-          {/* Filename */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">Filename</label>
-            <input
-              type="text"
-              value={filename}
-              onChange={(e) => setFilename(e.target.value)}
-              className="form-input"
-              placeholder="Enter filename"
-            />
+        <div className="export-controls">
+          <div className="field">
+            <label>Filename</label>
+            <div className="filename-row">
+              <input
+                className="input"
+                value={filename}
+                onChange={(e) => setFilename(e.target.value)}
+              />
+              <span className="ext">.{format === "jpeg" ? "jpg" : format}</span>
+            </div>
           </div>
 
-          {/* Format */}
-          <div>
-            <label className="block text-sm text-gray-300 mb-2">Format</label>
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value as 'png' | 'jpeg' | 'webp')}
-              className="form-select"
-            >
-              <option value="png">PNG (lossless, transparency)</option>
-              <option value="jpeg">JPEG (smaller file, no transparency)</option>
-              <option value="webp">WebP (modern, efficient)</option>
-            </select>
+          <div className="field">
+            <label>Format</label>
+            <div className="format-grid">
+              {FORMATS.map((f) => (
+                <button
+                  key={f.id}
+                  className={`format-card ${format === f.id ? "is-on" : ""}`}
+                  onClick={() => setFormat(f.id)}
+                >
+                  <div className="fc-name">{f.name}</div>
+                  <div className="fc-desc">{f.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Quality (for JPEG and WebP) */}
-          {(format === 'jpeg' || format === 'webp') && (
-            <div>
-              <label className="block text-sm text-gray-300 mb-2">
-                Quality: {Math.round(quality * 100)}%
-              </label>
+          {meta.quality && (
+            <div className="field">
+              <label>Quality · {Math.round(quality * 100)}%</label>
               <input
                 type="range"
-                min="0.1"
-                max="1"
-                step="0.05"
-                value={quality}
-                onChange={(e) => setQuality(parseFloat(e.target.value))}
-                className="form-range"
+                min={5}
+                max={100}
+                value={Math.round(quality * 100)}
+                onChange={(e) => setQuality(parseInt(e.target.value) / 100)}
               />
             </div>
           )}
 
-          {/* Preview Info */}
-          {canvas && (
-            <div className="bg-gray-700 p-3 rounded">
-              <div className="text-sm text-gray-300 space-y-1">
-                <div>Dimensions: {canvas.width} × {canvas.height} px</div>
-                <div>Estimated size: {getFileSize()}</div>
-                <div>Final filename: {filename}.{format}</div>
-              </div>
+          <div className="field">
+            <label>Scale</label>
+            <div className="scale-pills">
+              {[0.5, 1, 1.5, 2, 3].map((s) => (
+                <button
+                  key={s}
+                  className={`pill ${scale === s ? "is-on" : ""}`}
+                  onClick={() => setScale(s)}
+                >
+                  {s}×
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {!meta.alpha && (
+            <div className="field">
+              <label>Matte (background)</label>
+              <input
+                type="color"
+                value={background}
+                onChange={(e) => setBg(e.target.value)}
+              />
+              <span className="mono small muted" style={{ marginLeft: 8 }}>
+                {background}
+              </span>
             </div>
           )}
-        </div>
 
-        <div className="flex space-x-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 btn-secondary"
-            disabled={isExporting}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={!canvas || !filename.trim() || isExporting}
-            className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isExporting ? (
-              <span className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Exporting...
-              </span>
-            ) : (
-              'Export'
-            )}
-          </button>
+          <div className="modal-actions">
+            <button className="btn ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className="btn primary"
+              disabled={busy || !filename.trim()}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await exportDocument(api.doc, {
+                    format,
+                    filename: filename.trim(),
+                    quality,
+                    scale,
+                    background,
+                    flatten: format !== "psd",
+                  });
+                  onClose();
+                } catch (e) {
+                  console.error(e);
+                  alert("Export failed: " + (e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Exporting…" : "Export"}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

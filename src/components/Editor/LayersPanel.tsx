@@ -1,153 +1,238 @@
-import React from "react";
-import { Layer } from "@/types/editor";
+import React, { useMemo, useState } from "react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  LockOpen,
+  Plus,
+  Trash2,
+  Copy,
+  ImageDown,
+  Square,
+} from "lucide-react";
+import { EditorAPI } from "@/hooks/useEditor";
+import { BlendMode } from "@/types/editor";
+import { renderLayerThumbnail, renderMaskThumbnail } from "@/lib/render";
 
-interface LayersPanelProps {
-  layers: Layer[];
-  onLayerUpdate: (layerId: string, updates: Partial<Layer>) => void;
-  onLayerDelete: (layerId: string) => void;
-  onLayerSelect: (layerId: string) => void;
+const BLEND_MODES: BlendMode[] = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "soft-light",
+  "hard-light",
+  "color-dodge",
+  "color-burn",
+  "darken",
+  "lighten",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+];
+
+interface Props {
+  api: EditorAPI;
 }
 
-export default function LayersPanel({
-  layers,
-  onLayerUpdate,
-  onLayerDelete,
-  onLayerSelect
-}: LayersPanelProps) {
-  const blendModes = [
-    'normal',
-    'multiply',
-    'screen',
-    'overlay',
-    'soft-light',
-    'hard-light',
-    'color-dodge',
-    'color-burn',
-    'darken',
-    'lighten',
-    'difference',
-    'exclusion'
-  ];
+export default function LayersPanel({ api }: Props) {
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  // Render top-to-bottom (visual top = end of array)
+  const ordered = useMemo(() => [...api.doc.layers].reverse(), [api.doc.layers, api.dirtyTick]);
 
   return (
     <div className="panel">
-      <div className="panel-header">
-        <span>Layers</span>
+      <div className="panel-head">
+        <span className="panel-title">Layers</span>
       </div>
-      <div className="panel-content">
-        <div className="space-y-3">
-          {[...layers].reverse().map((layer, index) => (
+      <div className="panel-toolbar">
+        <select
+          value={api.selectedLayer?.blendMode ?? "normal"}
+          onChange={(e) =>
+            api.selectedLayer &&
+            api.updateLayerWithHistory(
+              api.selectedLayer.id,
+              { blendMode: e.target.value as BlendMode },
+              "Blend Mode"
+            )
+          }
+          className="select-mini"
+          disabled={!api.selectedLayer}
+        >
+          {BLEND_MODES.map((b) => (
+            <option key={b} value={b}>
+              {b.replace("-", " ")}
+            </option>
+          ))}
+        </select>
+        <div className="opacity-mini">
+          <span>Opacity</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round((api.selectedLayer?.opacity ?? 1) * 100)}
+            onChange={(e) =>
+              api.selectedLayer &&
+              api.updateLayer(api.selectedLayer.id, { opacity: parseInt(e.target.value) / 100 })
+            }
+            onPointerUp={() => api.selectedLayer && api.pushHistory("Opacity")}
+            disabled={!api.selectedLayer}
+          />
+          <span className="opacity-val">{Math.round((api.selectedLayer?.opacity ?? 1) * 100)}%</span>
+        </div>
+      </div>
+
+      <div className="layer-list">
+        {ordered.length === 0 && (
+          <div className="empty">
+            <ImageDown size={28} strokeWidth={1.4} />
+            <div>No layers — drop or paste an image to start.</div>
+            <div className="empty-actions">
+              <button className="btn ghost" onClick={() => api.addBlankLayer()}>
+                New layer
+              </button>
+              <button
+                className="btn"
+                onClick={() => api.addFillLayer("#ffffff", "Background", true)}
+              >
+                Add white background
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "color";
+                  input.value = "#1f2937";
+                  input.oninput = () => api.addFillLayer(input.value, "Background", true);
+                  input.click();
+                }}
+              >
+                Add background color…
+              </button>
+            </div>
+          </div>
+        )}
+
+        {ordered.map((layer, vi) => {
+          const realIndex = api.doc.layers.length - 1 - vi;
+          const isSelected = api.doc.selectedLayerId === layer.id;
+          const thumb = renderLayerThumbnail(layer, 36);
+          const maskThumb = renderMaskThumbnail(layer.mask, 36);
+          return (
             <div
               key={layer.id}
-              className="bg-gray-700 rounded p-3 border border-gray-600 hover:border-gray-500 transition-colors"
-              onClick={() => onLayerSelect(layer.id)}
+              className={`layer-row ${isSelected ? "is-selected" : ""}`}
+              draggable
+              onDragStart={() => setDragId(layer.id)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDropIndex(vi);
+              }}
+              onDrop={() => {
+                if (dragId) {
+                  const dropReal = api.doc.layers.length - 1 - (dropIndex ?? 0);
+                  api.reorderLayer(dragId, dropReal);
+                }
+                setDragId(null);
+                setDropIndex(null);
+              }}
+              onClick={() => api.selectLayer(layer.id)}
             >
-              {/* Layer Header */}
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onLayerUpdate(layer.id, { visible: !layer.visible });
-                    }}
-                    className="text-sm"
-                  >
-                    {layer.visible ? '👁' : '🚫'}
-                  </button>
-                  <span className="text-sm font-medium truncate">{layer.name}</span>
-                </div>
+              <button
+                className="layer-eye"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  api.updateLayerWithHistory(
+                    layer.id,
+                    { visible: !layer.visible },
+                    layer.visible ? "Hide Layer" : "Show Layer"
+                  );
+                }}
+                title={layer.visible ? "Hide" : "Show"}
+              >
+                {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+              </button>
+              <img src={thumb} alt="" className="layer-thumb" />
+              {maskThumb && (
                 <button
+                  className={`mask-thumb ${
+                    api.doc.maskTargetActive && isSelected ? "is-mask-target" : ""
+                  }`}
+                  title={api.doc.maskTargetActive ? "Targeting mask" : "Click to edit mask"}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onLayerDelete(layer.id);
+                    api.selectLayer(layer.id);
+                    api.setMaskTargetActive(!api.doc.maskTargetActive);
                   }}
-                  className="text-red-400 hover:text-red-300 text-sm"
                 >
-                  ×
+                  <img src={maskThumb} alt="" />
                 </button>
-              </div>
-
-              {/* Layer Controls */}
-              <div className="space-y-2">
-                {/* Opacity */}
-                <div>
-                  <label className="text-xs text-gray-300">Opacity</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={layer.opacity}
-                    onChange={(e) =>
-                      onLayerUpdate(layer.id, { opacity: parseFloat(e.target.value) })
-                    }
-                    className="form-range"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  <span className="text-xs text-gray-400">
-                    {Math.round(layer.opacity * 100)}%
-                  </span>
+              )}
+              <div className="layer-meta">
+                <div className="layer-name" title={layer.name}>
+                  {layer.name}
                 </div>
-
-                {/* Blend Mode */}
-                <div>
-                  <label className="text-xs text-gray-300">Blend Mode</label>
-                  <select
-                    value={layer.blendMode}
-                    onChange={(e) =>
-                      onLayerUpdate(layer.id, { blendMode: e.target.value })
-                    }
-                    className="form-select"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {blendModes.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode.charAt(0).toUpperCase() + mode.slice(1).replace('-', ' ')}
-                      </option>
-                    ))}
-                  </select>
+                <div className="layer-sub">
+                  {layer.kind}
+                  {layer.mask ? " · mask" : ""}
                 </div>
-
-                {/* Position (for non-background layers) */}
-                {layer.type !== 'background' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-gray-300">X</label>
-                      <input
-                        type="number"
-                        value={layer.x}
-                        onChange={(e) =>
-                          onLayerUpdate(layer.id, { x: parseInt(e.target.value) || 0 })
-                        }
-                        className="form-input"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-300">Y</label>
-                      <input
-                        type="number"
-                        value={layer.y}
-                        onChange={(e) =>
-                          onLayerUpdate(layer.id, { y: parseInt(e.target.value) || 0 })
-                        }
-                        className="form-input"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
+              <button
+                className="layer-lock"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  api.updateLayer(layer.id, { locked: !layer.locked });
+                }}
+                title={layer.locked ? "Unlock" : "Lock"}
+              >
+                {layer.locked ? <Lock size={13} /> : <LockOpen size={13} />}
+              </button>
             </div>
-          ))}
+          );
+        })}
+      </div>
 
-          {layers.length === 0 && (
-            <div className="text-center text-gray-400 py-8">
-              <p className="text-sm">No layers yet</p>
-              <p className="text-xs mt-1">Upload an image or start drawing</p>
-            </div>
-          )}
-        </div>
+      <div className="layer-actions">
+        <button
+          onClick={() => api.addBlankLayer()}
+          title="New layer"
+          className="lay-act"
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          onClick={() => api.duplicateSelectedLayer()}
+          disabled={!api.selectedLayer}
+          title="Duplicate layer"
+          className="lay-act"
+        >
+          <Copy size={14} />
+        </button>
+        <button
+          onClick={() => {
+            if (!api.selectedLayer) return;
+            if (api.selectedLayer.mask) api.removeMaskFromSelected();
+            else api.addMaskToSelected();
+          }}
+          disabled={!api.selectedLayer}
+          title={api.selectedLayer?.mask ? "Remove mask" : "Add mask"}
+          className="lay-act"
+        >
+          <Square size={14} />
+        </button>
+        <button
+          onClick={() => api.selectedLayer && api.deleteLayer(api.selectedLayer.id)}
+          disabled={!api.selectedLayer}
+          title="Delete layer"
+          className="lay-act danger"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
     </div>
   );

@@ -1,183 +1,336 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Canvas from "./components/Editor/Canvas";
 import ToolPanel from "./components/Editor/ToolPanel";
 import LayersPanel from "./components/Editor/LayersPanel";
-import FilterPanel from "./components/Editor/FilterPanel";
 import HistoryPanel from "./components/Editor/HistoryPanel";
-import ImageUpload from "./components/UI/ImageUpload";
-import CameraCapture from "./components/UI/CameraCapture";
+import FilterPanel from "./components/Editor/FilterPanel";
+import PropertiesPanel from "./components/Editor/PropertiesPanel";
+import OptionsBar from "./components/Editor/OptionsBar";
+import MenuBar from "./components/Editor/MenuBar";
+import NewDocumentDialog from "./components/UI/NewDocumentDialog";
+import CanvasSizeDialog from "./components/UI/CanvasSizeDialog";
+import ImageSizeDialog from "./components/UI/ImageSizeDialog";
 import ExportDialog from "./components/UI/ExportDialog";
 import ShareDialog from "./components/UI/ShareDialog";
-import { EditorState, Tool, Layer, HistoryEntry } from "./types/editor";
-import { useImageEditor } from "./hooks/useImageEditor";
+import CameraCapture from "./components/UI/CameraCapture";
+import ImageUpload from "./components/UI/ImageUpload";
+import { useEditor } from "./hooks/useEditor";
+import { Tool } from "./types/editor";
+import { createTextLayer, createShapeLayer, renderTextLayer } from "./lib/document";
+import { Menu, PanelRight, Layers as LayersIcon, X } from "lucide-react";
+
+const SHORTCUTS: Record<string, Tool> = {
+  v: "move",
+  m: "marquee-rect",
+  l: "lasso-polygon",
+  w: "magic-wand",
+  b: "brush",
+  e: "eraser",
+  g: "fill",
+  i: "eyedropper",
+  t: "text",
+  u: "shape-rect",
+  c: "crop",
+  h: "hand",
+  z: "zoom",
+};
 
 export default function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const {
-    editorState,
-    selectedTool,
-    layers,
-    history,
-    addLayer,
-    updateLayer,
-    deleteLayer,
-    selectLayer,
-    addHistoryEntry,
-    undo,
-    redo,
-    setSelectedTool
-  } = useImageEditor();
+  const api = useEditor();
+  const canvasOutRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [showShareDialog, setShowShareDialog] = useState(false);
-  const [showCameraCapture, setShowCameraCapture] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showCanvasSize, setShowCanvasSize] = useState(false);
+  const [showImageSize, setShowImageSize] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [mobileTools, setMobileTools] = useState(false);
+  const [mobilePanels, setMobilePanels] = useState(false);
 
-  const handleImageUpload = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        addLayer({
-          id: `layer-${Date.now()}`,
-          name: `Image Layer ${layers.length + 1}`,
-          type: 'image',
-          visible: true,
-          opacity: 1,
-          blendMode: 'normal',
-          x: 0,
-          y: 0,
-          width: img.width,
-          height: img.height,
-          data: img
-        });
-        addHistoryEntry('Add Image Layer');
+  const openFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => api.addImageLayer(img, file.name);
+        img.src = e.target?.result as string;
       };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  }, [addLayer, addHistoryEntry, layers.length]);
+      reader.readAsDataURL(file);
+    },
+    [api]
+  );
 
-  const handleCameraCapture = useCallback((imageSrc: string) => {
-    const img = new Image();
-    img.onload = () => {
-      addLayer({
-        id: `layer-${Date.now()}`,
-        name: `Camera Capture ${layers.length + 1}`,
-        type: 'image',
-        visible: true,
-        opacity: 1,
-        blendMode: 'normal',
-        x: 0,
-        y: 0,
-        width: img.width,
-        height: img.height,
-        data: img
-      });
-      addHistoryEntry('Camera Capture');
+  const onCameraCapture = useCallback(
+    (src: string) => {
+      const img = new Image();
+      img.onload = () => api.addImageLayer(img, "Camera capture");
+      img.src = src;
+      setShowCamera(false);
+    },
+    [api]
+  );
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          if (e.shiftKey) api.redo();
+          else api.undo();
+          return;
+        }
+        if (e.key.toLowerCase() === "d") {
+          e.preventDefault();
+          api.setSelection({ mask: null, bounds: null });
+          return;
+        }
+        if (e.key.toLowerCase() === "e" && e.shiftKey) {
+          e.preventDefault();
+          setShowExport(true);
+          return;
+        }
+        return;
+      }
+      const tool = SHORTCUTS[e.key.toLowerCase()];
+      if (tool) {
+        api.setTool(tool);
+        return;
+      }
+      if (e.key === "[") api.setBrush({ ...api.brush, size: Math.max(1, api.brush.size - 2) });
+      if (e.key === "]") api.setBrush({ ...api.brush, size: Math.min(500, api.brush.size + 2) });
+      if (e.key === "x") {
+        const fg = api.foreground;
+        api.setForeground(api.background);
+        api.setBackgroundColor(fg);
+      }
+      if (e.key === "d" && !e.ctrlKey && !e.metaKey) {
+        api.setForeground("#000000");
+        api.setBackgroundColor("#ffffff");
+      }
     };
-    img.src = imageSrc;
-    setShowCameraCapture(false);
-  }, [addLayer, addHistoryEntry, layers.length]);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [api]);
+
+  // Paste from clipboard
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) openFile(file);
+          return;
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [openFile]);
+
+  // Drag-drop a file anywhere
+  useEffect(() => {
+    const onDragOver = (e: DragEvent) => e.preventDefault();
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files?.[0];
+      if (f && f.type.startsWith("image/")) openFile(f);
+    };
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [openFile]);
+
+  // Handle Tool=text on click — open a text layer in the center
+  const onClickAddText = useCallback(() => {
+    const layer = createTextLayer(
+      {
+        text: "Type here",
+        fontFamily: "Inter",
+        fontSize: 64,
+        fontWeight: 700,
+        color: api.foreground,
+        align: "left",
+      },
+      api.doc.width,
+      api.doc.height
+    );
+    api.addLayer(layer, "Text Layer");
+    api.setTool("move");
+  }, [api]);
+
+  const onClickAddShape = useCallback(
+    (kind: "rect" | "ellipse") => {
+      const w = 300;
+      const h = kind === "rect" ? 200 : 300;
+      const layer = createShapeLayer(
+        { kind, fill: api.foreground, stroke: null, strokeWidth: 0 },
+        {
+          x: Math.round(api.doc.width / 2 - w / 2),
+          y: Math.round(api.doc.height / 2 - h / 2),
+          width: w,
+          height: h,
+        }
+      );
+      api.addLayer(layer, kind === "rect" ? "Rectangle" : "Ellipse");
+      api.setTool("move");
+    },
+    [api]
+  );
+
+  // When user picks text/shape tool, drop a default layer once
+  useEffect(() => {
+    if (api.tool === "text") onClickAddText();
+    if (api.tool === "shape-rect") onClickAddShape("rect");
+    if (api.tool === "shape-ellipse") onClickAddShape("ellipse");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api.tool]);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900 text-white">
-      {/* Header */}
-      <header className="bg-gray-800 px-4 py-2 flex items-center justify-between border-b border-gray-700">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-xl font-bold">Photoshop Clone</h1>
-          <div className="flex space-x-2">
-            <ImageUpload onImageUpload={handleImageUpload} />
-            <button
-              onClick={() => setShowCameraCapture(true)}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Camera
-            </button>
-          </div>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setShowExportDialog(true)}
-            className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-          >
-            Export
-          </button>
-          <button
-            onClick={() => setShowShareDialog(true)}
-            className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
-          >
-            Share
-          </button>
-        </div>
-      </header>
+    <div className="app">
+      <MenuBar
+        api={api}
+        onNew={() => setShowNew(true)}
+        onOpen={() => document.getElementById("file-open-trigger")?.click()}
+        onExport={() => setShowExport(true)}
+        onCanvasSize={() => setShowCanvasSize(true)}
+        onImageSize={() => setShowImageSize(true)}
+        onCamera={() => setShowCamera(true)}
+        onShare={() => setShowShare(true)}
+      />
+      <OptionsBar api={api} />
 
-      {/* Main Editor */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel - Tools */}
-        <div className="w-16 bg-gray-800 border-r border-gray-700">
-          <ToolPanel
-            selectedTool={selectedTool}
-            onToolSelect={setSelectedTool}
+      <div className="workspace">
+        {/* Backdrop closes any open mobile sheet */}
+        {(mobileTools || mobilePanels) && (
+          <div
+            className="mobile-backdrop"
+            onClick={() => {
+              setMobileTools(false);
+              setMobilePanels(false);
+            }}
           />
+        )}
+        <div className={`tool-rail-wrap ${mobileTools ? "is-open" : ""}`}>
+        <ToolPanel
+          selectedTool={api.tool}
+          onToolSelect={api.setTool}
+          foreground={api.foreground}
+          background={api.background}
+          onSwapColors={() => {
+            const fg = api.foreground;
+            api.setForeground(api.background);
+            api.setBackgroundColor(fg);
+          }}
+          onResetColors={() => {
+            api.setForeground("#000000");
+            api.setBackgroundColor("#ffffff");
+          }}
+          onForegroundClick={() => {
+            const inp = document.getElementById("fg-color-trigger") as HTMLInputElement | null;
+            inp?.click();
+          }}
+        />
         </div>
 
-        {/* Canvas Area */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 bg-gray-600 p-4">
-            <Canvas
-              ref={canvasRef}
-              layers={layers}
-              selectedTool={selectedTool}
-              onLayerUpdate={updateLayer}
-              onHistoryAdd={addHistoryEntry}
-            />
-          </div>
+        <input
+          id="fg-color-trigger"
+          type="color"
+          value={api.foreground}
+          onChange={(e) => {
+            api.setForeground(e.target.value);
+            api.setBrush({ ...api.brush, color: e.target.value });
+          }}
+          style={{ position: "absolute", visibility: "hidden", pointerEvents: "none" }}
+        />
+
+        <div className="stage-wrap">
+          <Canvas api={api} canvasOutRef={canvasOutRef} />
         </div>
 
-        {/* Right Panels */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
-          <div className="flex-1 overflow-y-auto">
-            <LayersPanel
-              layers={layers}
-              onLayerUpdate={updateLayer}
-              onLayerDelete={deleteLayer}
-              onLayerSelect={selectLayer}
-            />
-            <FilterPanel
-              layers={layers}
-              onLayerUpdate={updateLayer}
-              onHistoryAdd={addHistoryEntry}
-            />
-            <HistoryPanel
-              history={history}
-              onUndo={undo}
-              onRedo={redo}
-            />
-          </div>
-        </div>
+        <aside className={`right-rail ${mobilePanels ? "is-open" : ""}`}>
+          <button
+            className="rail-close"
+            onClick={() => setMobilePanels(false)}
+            aria-label="Close panels"
+          >
+            <X size={16} />
+          </button>
+          <PropertiesPanel api={api} />
+          <LayersPanel api={api} />
+          <FilterPanel api={api} />
+          <HistoryPanel api={api} />
+        </aside>
       </div>
 
-      {/* Dialogs */}
-      {showExportDialog && (
-        <ExportDialog
-          canvas={canvasRef.current}
-          onClose={() => setShowExportDialog(false)}
-        />
-      )}
+      {/* Mobile-only floating action buttons */}
+      <button
+        className="fab fab-tools"
+        onClick={() => {
+          setMobileTools((v) => !v);
+          setMobilePanels(false);
+        }}
+        title="Tools"
+      >
+        <Menu size={20} />
+      </button>
+      <button
+        className="fab fab-panels"
+        onClick={() => {
+          setMobilePanels((v) => !v);
+          setMobileTools(false);
+        }}
+        title="Layers / properties"
+      >
+        <LayersIcon size={20} />
+      </button>
 
-      {showShareDialog && (
-        <ShareDialog
-          canvas={canvasRef.current}
-          onClose={() => setShowShareDialog(false)}
-        />
-      )}
+      {/* hidden input used by File > Open */}
+      <input
+        id="file-open-trigger"
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) openFile(f);
+          (e.target as HTMLInputElement).value = "";
+        }}
+      />
 
-      {showCameraCapture && (
-        <CameraCapture
-          onCapture={handleCameraCapture}
-          onClose={() => setShowCameraCapture(false)}
+      {showNew && (
+        <NewDocumentDialog
+          onClose={() => setShowNew(false)}
+          onCreate={(w, h, bg, name) => api.newDocument(w, h, bg, name)}
         />
       )}
+      {showCanvasSize && (
+        <CanvasSizeDialog
+          width={api.doc.width}
+          height={api.doc.height}
+          onClose={() => setShowCanvasSize(false)}
+          onApply={(w, h, a) => api.applyCanvasSize(w, h, a)}
+        />
+      )}
+      {showImageSize && (
+        <ImageSizeDialog
+          width={api.doc.width}
+          height={api.doc.height}
+          onClose={() => setShowImageSize(false)}
+          onApply={(w, h) => api.applyImageSize(w, h)}
+        />
+      )}
+      {showExport && <ExportDialog api={api} onClose={() => setShowExport(false)} />}
+      {showShare && <ShareDialog api={api} onClose={() => setShowShare(false)} />}
+      {showCamera && <CameraCapture onCapture={onCameraCapture} onClose={() => setShowCamera(false)} />}
     </div>
   );
 }
