@@ -228,6 +228,8 @@ export function useEditor() {
 
   const deleteLayer = useCallback(
     (id: string) => {
+      const target = doc.layers.find((l) => l.id === id);
+      if (target?.locked) return;
       setDoc((d) => ({
         ...d,
         layers: d.layers.filter((l) => l.id !== id),
@@ -235,7 +237,7 @@ export function useEditor() {
       }));
       setTimeout(() => pushHistory("Delete Layer"), 0);
     },
-    [pushHistory]
+    [doc.layers, pushHistory]
   );
 
   const duplicateSelectedLayer = useCallback(() => {

@@ -23,7 +23,7 @@ const FILTERS: Array<{ id: BasicFilterId; name: string }> = [
 
 export default function FilterPanel({ api }: Props) {
   const layer = api.selectedLayer;
-  const canApply = !!layer && layer.kind === "raster";
+  const canApply = !!layer && layer.kind === "raster" && !layer.locked;
 
   return (
     <div className="panel">
@@ -49,7 +49,9 @@ export default function FilterPanel({ api }: Props) {
       </div>
       {!canApply && (
         <div className="muted small" style={{ padding: "0 12px 12px" }}>
-          Select a raster layer to apply adjustments.
+          {layer?.locked
+            ? "This layer is locked — unlock it to apply adjustments."
+            : "Select a raster layer to apply adjustments."}
         </div>
       )}
     </div>

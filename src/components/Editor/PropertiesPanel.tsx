@@ -109,10 +109,11 @@ function renderLayerSection(api: EditorAPI) {
       </section>
 
       <section className="prop-section">
-        <h4>Transform</h4>
+        <h4>Transform {layer.locked && <span className="lock-tag">locked</span>}</h4>
         <Row label="X">
           <NumberInput
             value={layer.x}
+            disabled={layer.locked}
             onChange={(v) => api.updateLayer(layer.id, { x: v })}
             onCommit={() => api.pushHistory("Move")}
           />
@@ -120,6 +121,7 @@ function renderLayerSection(api: EditorAPI) {
         <Row label="Y">
           <NumberInput
             value={layer.y}
+            disabled={layer.locked}
             onChange={(v) => api.updateLayer(layer.id, { y: v })}
             onCommit={() => api.pushHistory("Move")}
           />
@@ -128,6 +130,7 @@ function renderLayerSection(api: EditorAPI) {
           <NumberInput
             value={layer.width}
             min={1}
+            disabled={layer.locked}
             onChange={(v) => api.updateLayer(layer.id, { width: v })}
             onCommit={() => api.pushHistory("Resize")}
           />
@@ -136,6 +139,7 @@ function renderLayerSection(api: EditorAPI) {
           <NumberInput
             value={layer.height}
             min={1}
+            disabled={layer.locked}
             onChange={(v) => api.updateLayer(layer.id, { height: v })}
             onCommit={() => api.pushHistory("Resize")}
           />
@@ -143,6 +147,7 @@ function renderLayerSection(api: EditorAPI) {
         <Row label="Rotation">
           <NumberInput
             value={Math.round((layer.rotation * 180) / Math.PI)}
+            disabled={layer.locked}
             onChange={(v) =>
               api.updateLayer(layer.id, { rotation: (v * Math.PI) / 180 })
             }
@@ -380,12 +385,14 @@ function NumberInput({
   onCommit,
   min,
   max,
+  disabled,
 }: {
   value: number;
   onChange: (v: number) => void;
   onCommit?: () => void;
   min?: number;
   max?: number;
+  disabled?: boolean;
 }) {
   return (
     <input
@@ -394,6 +401,7 @@ function NumberInput({
       value={value}
       min={min}
       max={max}
+      disabled={disabled}
       onChange={(e) => {
         const v = parseFloat(e.target.value);
         if (!Number.isNaN(v)) onChange(v);

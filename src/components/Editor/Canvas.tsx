@@ -189,6 +189,10 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       const layer = topmostLayerAt(api, docPt.x, docPt.y);
       if (layer) {
         api.selectLayer(layer.id);
+        if (layer.locked) {
+          // Locked: allow selection, but no move/transform drags.
+          return;
+        }
         // Check transform handles first if already selected
         if (api.selectedLayer?.id === layer.id) {
           const handle = hitTransformHandle(api, docPt);
@@ -258,6 +262,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     if (api.tool === "brush" || api.tool === "eraser") {
       const sel = api.selectedLayer;
       if (!sel) return;
+      if (sel.locked) return;
       if (api.doc.maskTargetActive && !sel.mask) return;
       const target = api.doc.maskTargetActive ? sel.mask! : sel.canvas;
       paintSegment(
@@ -280,6 +285,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         // No layer to paint on: surface a hint via the editor's empty state.
         return;
       }
+      if (sel.locked) return;
       if (e.shiftKey || (sel.kind === "raster" && sel.canvas.width > 0 && api.selection.mask)) {
         // Shift = fill entire layer (or selection if any). Same applies when a selection
         // exists — flood-fill inside a selection is ambiguous; full-fill the selection.
@@ -529,9 +535,18 @@ function drawSelectedLayerOverlay(ctx: CanvasRenderingContext2D, api: EditorAPI)
   ctx.save();
   ctx.translate(l.x + l.width / 2, l.y + l.height / 2);
   ctx.rotate(l.rotation);
-  ctx.strokeStyle = "#3b82f6";
+  ctx.strokeStyle = l.locked ? "#9aa3b2" : "#3b82f6";
   ctx.lineWidth = 1 / api.view.zoom;
+  if (l.locked) {
+    ctx.setLineDash([4 / api.view.zoom, 3 / api.view.zoom]);
+  }
   ctx.strokeRect(-l.width / 2, -l.height / 2, l.width, l.height);
+  ctx.setLineDash([]);
+  if (l.locked) {
+    // No transform handles for locked layers.
+    ctx.restore();
+    return;
+  }
   // handles
   const hs = 6 / api.view.zoom;
   const corners: Array<[number, number]> = [
