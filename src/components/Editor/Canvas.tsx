@@ -58,8 +58,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>([]);
   const [antsOffset, setAntsOffset] = useState(0);
   const rafRef = useRef<number | null>(null);
-  // Active touch pointers, used to detect pinch.
-  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  // Active pointers, used to detect pinch. We store type so we can filter to touch-only for pinch.
+  const pointersRef = useRef<Map<number, { x: number; y: number; type: string }>>(new Map());
 
   // Size canvas to its container
   const resize = useCallback(() => {
@@ -84,6 +84,28 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Global pointer cleanup — if a pointer never fires its pointerup on the canvas
+  // (e.g. finger drags off-screen), we still want to clear it from our map.
+  useEffect(() => {
+    const drop = (e: PointerEvent) => {
+      pointersRef.current.delete(e.pointerId);
+      // If we were pinching but lost a touch, downgrade out of pinch mode.
+      if (dragRef.current.kind === "pinch" && touchPointerCount() < 2) {
+        dragRef.current = { kind: "none" };
+      }
+    };
+    window.addEventListener("pointerup", drop);
+    window.addEventListener("pointercancel", drop);
+    return () => {
+      window.removeEventListener("pointerup", drop);
+      window.removeEventListener("pointercancel", drop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const touchPointerCount = () =>
+    [...pointersRef.current.values()].filter((p) => p.type === "touch").length;
 
   // Marching ants animation loop
   useEffect(() => {
@@ -141,22 +163,34 @@ export default function Canvas({ api, canvasOutRef }: Props) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Track pointer for pinch detection
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointersRef.current.size === 2) {
-      // Promote to pinch: cancel any other drag-in-progress.
-      const pts = [...pointersRef.current.values()];
-      const dx = pts[0].x - pts[1].x;
-      const dy = pts[0].y - pts[1].y;
+    pointersRef.current.set(e.pointerId, {
+      x: e.clientX,
+      y: e.clientY,
+      type: e.pointerType || "mouse",
+    });
+    // Only promote to pinch when there are two TOUCH pointers (so a palm-rest with
+    // a pen, or a hovering mouse, doesn't cancel an in-progress brush stroke).
+    const touchPts = [...pointersRef.current.values()].filter((p) => p.type === "touch");
+    if (touchPts.length === 2) {
+      const dx = touchPts[0].x - touchPts[1].x;
+      const dy = touchPts[0].y - touchPts[1].y;
       dragRef.current = {
         kind: "pinch",
         startDistance: Math.hypot(dx, dy) || 1,
         startZoom: api.view.zoom,
         startPan: { x: api.view.panX, y: api.view.panY },
-        startCenter: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+        startCenter: {
+          x: (touchPts[0].x + touchPts[1].x) / 2,
+          y: (touchPts[0].y + touchPts[1].y) / 2,
+        },
       };
       return;
     }
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Some browsers throw on captures from touch on canvas; safe to ignore.
+    }
     const docPt = ptDoc(e);
     const isSpace = (e as any).spaceKey === true || e.button === 1;
 
@@ -195,7 +229,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         }
         // Check transform handles first if already selected
         if (api.selectedLayer?.id === layer.id) {
-          const handle = hitTransformHandle(api, docPt);
+          const handle = hitTransformHandle(api, docPt, e.pointerType === "touch");
           if (handle) {
             dragRef.current = {
               kind: "transform",
@@ -325,11 +359,15 @@ export default function Canvas({ api, canvasOutRef }: Props) {
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (pointersRef.current.has(e.pointerId)) {
-      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      pointersRef.current.set(e.pointerId, {
+        x: e.clientX,
+        y: e.clientY,
+        type: e.pointerType || "mouse",
+      });
     }
     const drag = dragRef.current;
-    if (drag.kind === "pinch" && pointersRef.current.size >= 2) {
-      const pts = [...pointersRef.current.values()];
+    if (drag.kind === "pinch" && touchPointerCount() >= 2) {
+      const pts = [...pointersRef.current.values()].filter((p) => p.type === "touch");
       const dx = pts[0].x - pts[1].x;
       const dy = pts[0].y - pts[1].y;
       const dist = Math.hypot(dx, dy) || 1;
@@ -423,8 +461,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     } else if (drag.kind === "transform") {
       api.pushHistory("Transform");
     }
-    // Stay in pinch as long as 2+ pointers remain; otherwise reset.
-    if (drag.kind === "pinch" && pointersRef.current.size < 2) {
+    // Stay in pinch as long as 2+ touch pointers remain; otherwise reset.
+    if (drag.kind === "pinch" && touchPointerCount() < 2) {
       dragRef.current = { kind: "none" };
     } else if (drag.kind !== "pinch") {
       dragRef.current = { kind: "none" };
@@ -547,8 +585,8 @@ function drawSelectedLayerOverlay(ctx: CanvasRenderingContext2D, api: EditorAPI)
     ctx.restore();
     return;
   }
-  // handles
-  const hs = 6 / api.view.zoom;
+  // handles — slightly larger than the original 6px so they're easier to grab.
+  const hs = 9 / api.view.zoom;
   const corners: Array<[number, number]> = [
     [-l.width / 2, -l.height / 2],
     [0, -l.height / 2],
@@ -568,18 +606,22 @@ function drawSelectedLayerOverlay(ctx: CanvasRenderingContext2D, api: EditorAPI)
   // rotation handle
   ctx.beginPath();
   ctx.moveTo(0, -l.height / 2);
-  ctx.lineTo(0, -l.height / 2 - 16 / api.view.zoom);
+  ctx.lineTo(0, -l.height / 2 - 18 / api.view.zoom);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(0, -l.height / 2 - 16 / api.view.zoom, hs / 2, 0, Math.PI * 2);
+  ctx.arc(0, -l.height / 2 - 18 / api.view.zoom, hs * 0.65, 0, Math.PI * 2);
   ctx.fillStyle = "#3b82f6";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1 / api.view.zoom;
   ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
 function hitTransformHandle(
   api: EditorAPI,
-  pt: { x: number; y: number }
+  pt: { x: number; y: number },
+  isTouch = false
 ): TransformHandle | null {
   const l = api.selectedLayer;
   if (!l) return null;
@@ -590,7 +632,8 @@ function hitTransformHandle(
   const sin = Math.sin(-l.rotation);
   const lx = (pt.x - cx) * cos - (pt.y - cy) * sin;
   const ly = (pt.x - cx) * sin + (pt.y - cy) * cos;
-  const hs = 8 / api.view.zoom;
+  // Generous hit area — visible handle is small, but tap target is big.
+  const hs = (isTouch ? 26 : 14) / api.view.zoom;
   const handles: Array<[TransformHandle, number, number]> = [
     ["nw", -l.width / 2, -l.height / 2],
     ["n", 0, -l.height / 2],
@@ -600,7 +643,7 @@ function hitTransformHandle(
     ["s", 0, l.height / 2],
     ["sw", -l.width / 2, l.height / 2],
     ["w", -l.width / 2, 0],
-    ["rot", 0, -l.height / 2 - 16 / api.view.zoom],
+    ["rot", 0, -l.height / 2 - 18 / api.view.zoom],
   ];
   for (const [h, hx, hy] of handles) {
     if (Math.abs(lx - hx) <= hs && Math.abs(ly - hy) <= hs) return h;
@@ -614,45 +657,58 @@ function computeTransformPatch(
   preserveAspect: boolean
 ) {
   const s = drag.startLayer;
-  // Convert mouse delta into layer-local axis-aligned space
   const cx = s.x + s.width / 2;
   const cy = s.y + s.height / 2;
+  // Mouse in layer-local axis-aligned space (origin = layer center, before rotation).
   const cos = Math.cos(-s.rotation);
   const sin = Math.sin(-s.rotation);
-  const dlx = (docPt.x - cx) * cos - (docPt.y - cy) * sin;
-  const dly = (docPt.x - cx) * sin + (docPt.y - cy) * cos;
+  const lx = (docPt.x - cx) * cos - (docPt.y - cy) * sin;
+  const ly = (docPt.x - cx) * sin + (docPt.y - cy) * cos;
 
   if (drag.handle === "rot") {
     const angle = Math.atan2(docPt.y - cy, docPt.x - cx) + Math.PI / 2;
     return { rotation: angle };
   }
 
-  let nx1 = -s.width / 2;
-  let ny1 = -s.height / 2;
-  let nx2 = s.width / 2;
-  let ny2 = s.height / 2;
+  // Anchor (opposite of the dragged handle) in layer-local centered coords.
+  const anchorX = drag.handle.includes("w")
+    ? s.width / 2
+    : drag.handle.includes("e")
+    ? -s.width / 2
+    : 0;
+  const anchorY = drag.handle.includes("n")
+    ? s.height / 2
+    : drag.handle.includes("s")
+    ? -s.height / 2
+    : 0;
 
-  if (drag.handle.includes("w")) nx1 = dlx;
-  if (drag.handle.includes("e")) nx2 = dlx;
-  if (drag.handle.includes("n")) ny1 = dly;
-  if (drag.handle.includes("s")) ny2 = dly;
+  // Which axes can move
+  const movesX = drag.handle.includes("w") || drag.handle.includes("e");
+  const movesY = drag.handle.includes("n") || drag.handle.includes("s");
+  const isCorner = movesX && movesY;
 
-  let nw = nx2 - nx1;
-  let nh = ny2 - ny1;
+  // Sign of the dragged corner from anchor
+  const sx = drag.handle.includes("w") ? -1 : drag.handle.includes("e") ? 1 : 0;
+  const sy = drag.handle.includes("n") ? -1 : drag.handle.includes("s") ? 1 : 0;
 
-  if (preserveAspect) {
+  let nw = movesX ? Math.abs(lx - anchorX) : s.width;
+  let nh = movesY ? Math.abs(ly - anchorY) : s.height;
+
+  // Shift-on-corner = lock aspect ratio. (Edge handles ignore aspect lock.)
+  if (preserveAspect && isCorner) {
     const aspect = s.width / s.height;
-    if (Math.abs(nw / aspect) > Math.abs(nh)) nh = nw / aspect * Math.sign(nh) || nw / aspect;
-    else nw = nh * aspect * Math.sign(nw) || nh * aspect;
+    if (nw / nh > aspect) nh = nw / aspect;
+    else nw = nh * aspect;
   }
 
-  if (nw < 1) nw = 1;
-  if (nh < 1) nh = 1;
+  nw = Math.max(1, nw);
+  nh = Math.max(1, nh);
 
-  // New center in layer-local
-  const ncxLocal = (nx1 + nx2) / 2;
-  const ncyLocal = (ny1 + ny2) / 2;
-  // Transform back to doc space
+  // Reconstruct new center in layer-local
+  const ncxLocal = movesX ? anchorX + (sx * nw) / 2 : 0;
+  const ncyLocal = movesY ? anchorY + (sy * nh) / 2 : 0;
+
+  // Rotate back to doc space
   const cos2 = Math.cos(s.rotation);
   const sin2 = Math.sin(s.rotation);
   const ncx = cx + ncxLocal * cos2 - ncyLocal * sin2;
