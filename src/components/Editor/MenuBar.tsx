@@ -10,9 +10,10 @@ interface Props {
   onImageSize: () => void;
   onCamera: () => void;
   onShare: () => void;
+  onOpenFilterGallery: (filterId?: string) => void;
 }
 
-type Menu = "file" | "edit" | "image" | "layer" | "view" | null;
+type Menu = "file" | "edit" | "image" | "layer" | "filter" | "view" | null;
 
 export default function MenuBar(p: Props) {
   const [open, setOpen] = useState<Menu>(null);
@@ -111,6 +112,27 @@ export default function MenuBar(p: Props) {
           })}
           disabled={!p.api.selectedLayer}
         />
+      </Menu>
+
+      <Menu name="Filter" open={open === "filter"} onOpen={() => setOpen("filter")}>
+        <Item label="Filter Gallery…" shortcut="⌘F" onClick={closeAndDo(() => p.onOpenFilterGallery())} />
+        <Sep />
+        <Item label="Brightness / Contrast…" onClick={closeAndDo(() => p.onOpenFilterGallery("brightness-contrast"))} />
+        <Item label="Levels…" onClick={closeAndDo(() => p.onOpenFilterGallery("levels"))} />
+        <Item label="Curves…" onClick={closeAndDo(() => p.onOpenFilterGallery("curves"))} />
+        <Item label="Hue / Saturation…" onClick={closeAndDo(() => p.onOpenFilterGallery("hue-saturation"))} />
+        <Item label="Color Balance…" onClick={closeAndDo(() => p.onOpenFilterGallery("color-balance"))} />
+        <Sep />
+        <Item label="Gaussian Blur…" onClick={closeAndDo(() => p.onOpenFilterGallery("gaussian-blur"))} />
+        <Item label="Motion Blur…" onClick={closeAndDo(() => p.onOpenFilterGallery("motion-blur"))} />
+        <Item label="Unsharp Mask…" onClick={closeAndDo(() => p.onOpenFilterGallery("unsharp-mask"))} />
+        <Sep />
+        <Item label="Find Edges" onClick={closeAndDo(() => p.onOpenFilterGallery("find-edges"))} />
+        <Item label="Emboss…" onClick={closeAndDo(() => p.onOpenFilterGallery("emboss"))} />
+        <Item label="Oil Paint…" onClick={closeAndDo(() => p.onOpenFilterGallery("oil-paint"))} />
+        <Sep />
+        <Item label="Clouds…" onClick={closeAndDo(() => p.onOpenFilterGallery("clouds"))} />
+        <Item label="Lens Flare…" onClick={closeAndDo(() => p.onOpenFilterGallery("lens-flare"))} />
       </Menu>
 
       <Menu name="View" open={open === "view"} onOpen={() => setOpen("view")}>

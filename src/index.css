@@ -189,6 +189,14 @@ input, select, textarea {
   padding: 6px 0;
   gap: 4px;
   align-items: center;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  height: 100%;
+  min-height: 0;
+  /* Smooth touch scrolling without rubber-band */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .tool-section {
@@ -574,6 +582,109 @@ input[type="range"]::-moz-range-thumb {
 .webcam-wrap { background: black; border-radius: 6px; overflow: hidden; }
 .webcam { width: 100%; display: block; }
 
+/* --- Filter Gallery ------------------------------------------------------- */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: 180px 200px 1fr;
+  gap: 12px;
+  min-height: 480px;
+}
+.gallery-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--line);
+  padding-right: 8px;
+}
+.cat-btn {
+  padding: 7px 10px;
+  border-radius: 5px;
+  text-align: left;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  background: transparent;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.cat-btn:hover { background: var(--bg-2); color: var(--text); }
+.cat-btn.is-on { background: var(--accent-strong); color: white; }
+.import-btn { font-size: 11.5px; }
+.cat-sep { height: 1px; background: var(--line); margin: 8px 0; }
+
+.gallery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--line);
+  padding-right: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+.filter-row {
+  padding: 7px 10px;
+  border-radius: 5px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  font-size: 12.5px;
+}
+.filter-row:hover { background: var(--bg-2); }
+.filter-row.is-on { background: var(--bg-3); border-color: var(--accent); color: white; }
+.row-del {
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  color: var(--text-mute);
+  display: flex; align-items: center; justify-content: center;
+}
+.row-del:hover { color: var(--danger); background: var(--bg-2); }
+
+.gallery-detail { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.gallery-detail .preview-frame canvas {
+  max-width: 100%;
+  max-height: 280px;
+  image-rendering: auto;
+}
+.detail-title { margin: 4px 0; font-size: 13px; font-weight: 600; }
+.param-list { display: flex; flex-direction: column; gap: 8px; }
+.param-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.param-row > label { color: var(--text-mute); font-size: 11.5px; }
+.param-row-fields { display: flex; align-items: center; gap: 8px; }
+.param-row-fields input[type="range"] { flex: 1; }
+.param-row-fields .input.num { width: 72px; }
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.curve-editor { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.curve-help { font-size: 10.5px; }
+
+@media (max-width: 900px) {
+  .gallery-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 0;
+  }
+  .gallery-cats { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 0 0 8px; }
+  .gallery-list { border-right: none; border-bottom: 1px solid var(--line); max-height: 200px; padding: 0 0 8px; }
+}
+
 /* --- Floating action buttons (mobile) ------------------------------------ */
 .fab {
   display: none;
@@ -638,11 +749,18 @@ input[type="range"]::-moz-range-thumb {
   }
   .tool-rail-wrap.is-open { transform: translateX(0); }
   .tool-rail {
-    width: 64px;
+    width: 60px;
     height: 100%;
     box-shadow: 6px 0 18px rgba(0,0,0,0.45);
+    padding: 4px 0 12px;
+    gap: 2px;
   }
-  .tool-btn { width: 44px; height: 40px; }
+  .tool-rail .tool-section { padding: 0; }
+  .tool-rail .tool-section + .tool-section { margin-top: 0; padding-top: 4px; }
+  .tool-btn { width: 44px; height: 38px; }
+  .color-chips { padding-top: 4px; padding-bottom: 8px; }
+  .chip-stack { width: 28px; height: 28px; }
+  .color-chip { width: 18px; height: 18px; }
 
   /* Right rail as right drawer */
   .right-rail {

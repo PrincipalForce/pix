@@ -11,6 +11,7 @@ import NewDocumentDialog from "./components/UI/NewDocumentDialog";
 import CanvasSizeDialog from "./components/UI/CanvasSizeDialog";
 import ImageSizeDialog from "./components/UI/ImageSizeDialog";
 import ExportDialog from "./components/UI/ExportDialog";
+import FilterGalleryDialog from "./components/UI/FilterGalleryDialog";
 import ShareDialog from "./components/UI/ShareDialog";
 import CameraCapture from "./components/UI/CameraCapture";
 import ImageUpload from "./components/UI/ImageUpload";
@@ -47,6 +48,13 @@ export default function App() {
   const [showCamera, setShowCamera] = useState(false);
   const [mobileTools, setMobileTools] = useState(false);
   const [mobilePanels, setMobilePanels] = useState(false);
+  const [galleryFilterId, setGalleryFilterId] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
+  const openGallery = useCallback((filterId?: string) => {
+    setGalleryFilterId(filterId ?? null);
+    setGalleryOpen(true);
+  }, []);
 
   const openFile = useCallback(
     (file: File) => {
@@ -91,6 +99,11 @@ export default function App() {
         if (e.key.toLowerCase() === "e" && e.shiftKey) {
           e.preventDefault();
           setShowExport(true);
+          return;
+        }
+        if (e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          openGallery();
           return;
         }
         return;
@@ -205,6 +218,7 @@ export default function App() {
         onImageSize={() => setShowImageSize(true)}
         onCamera={() => setShowCamera(true)}
         onShare={() => setShowShare(true)}
+        onOpenFilterGallery={openGallery}
       />
       <OptionsBar api={api} />
 
@@ -266,7 +280,7 @@ export default function App() {
           </button>
           <PropertiesPanel api={api} />
           <LayersPanel api={api} />
-          <FilterPanel api={api} />
+          <FilterPanel api={api} onOpenGallery={openGallery} />
           <HistoryPanel api={api} />
         </aside>
       </div>
@@ -331,6 +345,13 @@ export default function App() {
       {showExport && <ExportDialog api={api} onClose={() => setShowExport(false)} />}
       {showShare && <ShareDialog api={api} onClose={() => setShowShare(false)} />}
       {showCamera && <CameraCapture onCapture={onCameraCapture} onClose={() => setShowCamera(false)} />}
+      {galleryOpen && (
+        <FilterGalleryDialog
+          api={api}
+          initialFilterId={galleryFilterId ?? undefined}
+          onClose={() => setGalleryOpen(false)}
+        />
+      )}
     </div>
   );
 }

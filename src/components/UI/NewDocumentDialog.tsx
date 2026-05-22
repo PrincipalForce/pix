@@ -3,10 +3,12 @@ import Modal from "./Modal";
 import { DocumentState } from "@/types/editor";
 
 const PRESETS = [
-  { name: "Web 1280×720", w: 1280, h: 720 },
-  { name: "Web 1920×1080", w: 1920, h: 1080 },
-  { name: "Square 1080×1080", w: 1080, h: 1080 },
+  { name: "Phone photo 3024×4032", w: 3024, h: 4032 },
+  { name: "Phone photo landscape 4032×3024", w: 4032, h: 3024 },
   { name: "Story 1080×1920", w: 1080, h: 1920 },
+  { name: "Square 1080×1080", w: 1080, h: 1080 },
+  { name: "Web 1920×1080", w: 1920, h: 1080 },
+  { name: "Web 1280×720", w: 1280, h: 720 },
   { name: "Letter 2550×3300", w: 2550, h: 3300 },
   { name: "Print A4 2480×3508", w: 2480, h: 3508 },
 ];
@@ -17,9 +19,12 @@ interface Props {
 }
 
 export default function NewDocumentDialog({ onClose, onCreate }: Props) {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 900;
+  const isPortrait =
+    typeof window !== "undefined" && window.innerHeight > window.innerWidth;
   const [name, setName] = useState("Untitled");
-  const [w, setW] = useState(1920);
-  const [h, setH] = useState(1080);
+  const [w, setW] = useState(isMobile ? (isPortrait ? 1080 : 1920) : 1920);
+  const [h, setH] = useState(isMobile ? (isPortrait ? 1920 : 1080) : 1080);
   const [bg, setBg] = useState<DocumentState["background"]>("transparent");
 
   return (

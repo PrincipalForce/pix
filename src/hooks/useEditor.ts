@@ -27,10 +27,24 @@ import { fitViewport } from "@/lib/render";
 
 const HISTORY_LIMIT = 60;
 
+function pickInitialDocSize(): { w: number; h: number } {
+  if (typeof window === "undefined") return { w: 1920, h: 1080 };
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  // Mobile: portrait phone-photo canvas by default (matches the device's aspect).
+  if (vw < 900) {
+    if (vh >= vw) return { w: 1080, h: 1920 };
+    return { w: 1920, h: 1080 };
+  }
+  // Desktop: landscape FHD-ish.
+  return { w: 1920, h: 1080 };
+}
+
 export function useEditor() {
-  const [doc, setDoc] = useState<DocumentState>(() =>
-    createBlankDocument(1280, 800, "transparent", "Untitled-1")
-  );
+  const [doc, setDoc] = useState<DocumentState>(() => {
+    const { w, h } = pickInitialDocSize();
+    return createBlankDocument(w, h, "transparent", "Untitled-1");
+  });
   const [tool, setTool] = useState<Tool>("move");
   const [view, setView] = useState<Viewport>({ zoom: 1, panX: 0, panY: 0 });
   const [selection, setSelection] = useState<Selection>(emptySelection());
