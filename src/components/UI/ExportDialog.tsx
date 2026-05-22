@@ -25,6 +25,7 @@ export default function ExportDialog({ api, onClose }: Props) {
   const [quality, setQuality] = useState(0.92);
   const [scale, setScale] = useState(1);
   const [background, setBg] = useState("#ffffff");
+  const [transparent, setTransparent] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const meta = FORMATS.find((f) => f.id === format)!;
@@ -108,6 +109,30 @@ export default function ExportDialog({ api, onClose }: Props) {
             </div>
           </div>
 
+          {meta.alpha && (
+            <div className="field">
+              <label>Background</label>
+              <div className="seg">
+                <button
+                  className={`seg-btn ${transparent ? "is-on" : ""}`}
+                  onClick={() => setTransparent(true)}
+                >
+                  Transparent
+                </button>
+                <button
+                  className={`seg-btn ${!transparent ? "is-on" : ""}`}
+                  onClick={() => setTransparent(false)}
+                >
+                  Document color
+                </button>
+              </div>
+              <div className="muted small" style={{ marginTop: 4 }}>
+                {transparent
+                  ? "Pixels not covered by a layer will be transparent."
+                  : `Bake in the document background color (${api.doc.background}).`}
+              </div>
+            </div>
+          )}
           {!meta.alpha && (
             <div className="field">
               <label>Matte (background)</label>
@@ -139,6 +164,7 @@ export default function ExportDialog({ api, onClose }: Props) {
                     scale,
                     background,
                     flatten: format !== "psd",
+                    transparentBackground: transparent,
                   });
                   onClose();
                 } catch (e) {

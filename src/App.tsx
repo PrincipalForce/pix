@@ -4,6 +4,8 @@ import ToolPanel from "./components/Editor/ToolPanel";
 import LayersPanel from "./components/Editor/LayersPanel";
 import HistoryPanel from "./components/Editor/HistoryPanel";
 import ActionsPanel from "./components/Editor/ActionsPanel";
+import AIPanel from "./components/Editor/AIPanel";
+import AISettingsDialog from "./components/UI/AISettingsDialog";
 import Splash from "./components/UI/Splash";
 import FilterPanel from "./components/Editor/FilterPanel";
 import PropertiesPanel from "./components/Editor/PropertiesPanel";
@@ -53,6 +55,7 @@ export default function App() {
   const [mobilePanels, setMobilePanels] = useState(false);
   const [galleryFilterId, setGalleryFilterId] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   const openGallery = useCallback((filterId?: string) => {
     setGalleryFilterId(filterId ?? null);
@@ -228,6 +231,7 @@ export default function App() {
         onCamera={() => setShowCamera(true)}
         onShare={() => setShowShare(true)}
         onOpenFilterGallery={openGallery}
+        onOpenAISettings={() => setShowAISettings(true)}
       />
       <OptionsBar api={api} />
 
@@ -287,6 +291,7 @@ export default function App() {
           >
             <X size={16} />
           </button>
+          <AIPanel api={api} onOpenSettings={() => setShowAISettings(true)} />
           <PropertiesPanel api={api} />
           <LayersPanel api={api} />
           <FilterPanel api={api} onOpenGallery={openGallery} />
@@ -362,6 +367,7 @@ export default function App() {
           onClose={() => setGalleryOpen(false)}
         />
       )}
+      {showAISettings && <AISettingsDialog onClose={() => setShowAISettings(false)} />}
     </div>
   );
 }

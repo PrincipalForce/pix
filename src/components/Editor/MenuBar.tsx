@@ -11,6 +11,7 @@ interface Props {
   onCamera: () => void;
   onShare: () => void;
   onOpenFilterGallery: (filterId?: string) => void;
+  onOpenAISettings: () => void;
 }
 
 type Menu = "file" | "edit" | "image" | "layer" | "filter" | "view" | null;
@@ -130,11 +131,15 @@ export default function MenuBar(p: Props) {
         <Item label="Find Edges" onClick={closeAndDo(() => p.onOpenFilterGallery("find-edges"))} />
         <Item label="Emboss…" onClick={closeAndDo(() => p.onOpenFilterGallery("emboss"))} />
         <Item label="Oil Paint…" onClick={closeAndDo(() => p.onOpenFilterGallery("oil-paint"))} />
+        <Item label="Rotoscope…" onClick={closeAndDo(() => p.onOpenFilterGallery("rotoscope"))} />
         <Sep />
         <Item label="Clouds…" onClick={closeAndDo(() => p.onOpenFilterGallery("clouds"))} />
         <Item label="Lens Flare…" onClick={closeAndDo(() => p.onOpenFilterGallery("lens-flare"))} />
       </Menu>
 
+      <Menu name="AI" open={open === ("ai" as any)} onOpen={() => setOpen("ai" as any)}>
+        <Item label="AI Settings…" onClick={closeAndDo(p.onOpenAISettings)} />
+      </Menu>
       <Menu name="View" open={open === "view"} onOpen={() => setOpen("view")}>
         <Item label="Fit to Window" onClick={closeAndDo(() => {
           const stage = document.querySelector(".canvas-stage") as HTMLElement | null;

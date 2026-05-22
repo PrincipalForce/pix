@@ -20,13 +20,19 @@ export interface ExportOptions {
   scale: number; // multiplier
   background: string; // hex; used when format has no alpha
   flatten: boolean; // composite all layers before encoding (always true except psd)
+  // For alpha-capable formats: when true, drop the document's background color
+  // so the exported image is truly transparent where layers don't cover.
+  transparentBackground?: boolean;
 }
 
 export async function exportDocument(
   doc: DocumentState,
   opts: ExportOptions
 ): Promise<void> {
-  const scaled = await scaledComposite(doc, opts.scale, formatSupportsAlpha(opts.format) ? null : opts.background);
+  const supportsAlpha = formatSupportsAlpha(opts.format);
+  const matte = supportsAlpha ? null : opts.background;
+  const includeDocBg = !(supportsAlpha && opts.transparentBackground);
+  const scaled = await scaledComposite(doc, opts.scale, matte, includeDocBg);
   const name = `${opts.filename}.${formatExt(opts.format)}`;
   switch (opts.format) {
     case "png": {
@@ -79,9 +85,10 @@ function formatSupportsAlpha(f: ExportFormat): boolean {
 async function scaledComposite(
   doc: DocumentState,
   scale: number,
-  bg: string | null
+  bg: string | null,
+  includeDocBackground: boolean = true
 ): Promise<HTMLCanvasElement> {
-  const composite = compositeDocument(doc, undefined, { includeBackground: true });
+  const composite = compositeDocument(doc, undefined, { includeBackground: includeDocBackground });
   const w = Math.max(1, Math.round(doc.width * scale));
   const h = Math.max(1, Math.round(doc.height * scale));
   const out = createCanvas(w, h);

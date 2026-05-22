@@ -1,5 +1,5 @@
 import { FilterDef } from "./types";
-import { clamp, copy, luminance, newLike } from "./imgutil";
+import { clamp, copy, hslToRgb, luminance, newLike, rgbToHsl } from "./imgutil";
 
 const findEdges: FilterDef = {
   id: "find-edges",
@@ -158,4 +158,116 @@ const diffuse: FilterDef = {
   },
 };
 
-export const STYLIZES: FilterDef[] = [findEdges, emboss, solarize, oilPaint, diffuse];
+const rotoscope: FilterDef = {
+  id: "rotoscope",
+  name: "Rotoscope",
+  category: "stylize",
+  params: [
+    { key: "levels", label: "Color levels", type: "range", min: 2, max: 16, step: 1, default: 5 },
+    { key: "smoothing", label: "Smoothing", type: "range", min: 0, max: 8, step: 1, default: 2 },
+    { key: "edgeStrength", label: "Edge strength", type: "range", min: 0, max: 100, step: 1, default: 70 },
+    { key: "edgeThreshold", label: "Edge threshold", type: "range", min: 0, max: 200, step: 1, default: 60 },
+    { key: "saturation", label: "Saturation boost", type: "range", min: -100, max: 200, step: 1, default: 40 },
+  ],
+  apply(src, p) {
+    const w = src.width, h = src.height;
+    const sd = src.data;
+    const out = newLike(src);
+    const od = out.data;
+
+    // 1. Light blur (smoothing) — separable box of radius `smoothing`.
+    const sm = p.smoothing as number;
+    let smoothed: Uint8ClampedArray = new Uint8ClampedArray(sd);
+    if (sm > 0) {
+      const tmp = new Uint8ClampedArray(sd.length);
+      smoothed = boxBlur(smoothed, w, h, sm, tmp);
+    }
+
+    // 2. Posterize (quantize each channel) + saturation boost in HSL.
+    const lv = p.levels as number;
+    const step = 255 / (lv - 1);
+    const inv = (lv - 1) / 255;
+    const sat = 1 + (p.saturation as number) / 100;
+    for (let i = 0; i < smoothed.length; i += 4) {
+      let r = Math.round(smoothed[i] * inv) * step;
+      let g = Math.round(smoothed[i + 1] * inv) * step;
+      let b = Math.round(smoothed[i + 2] * inv) * step;
+      if (sat !== 1) {
+        const [H, S, L] = rgbToHsl(r, g, b);
+        const ns = Math.max(0, Math.min(1, S * sat));
+        const [r2, g2, b2] = hslToRgb(H, ns, L);
+        r = r2; g = g2; b = b2;
+      }
+      od[i] = r; od[i + 1] = g; od[i + 2] = b; od[i + 3] = smoothed[i + 3];
+    }
+
+    // 3. Sobel edges on the original source; draw inked outline where magnitude > threshold.
+    const eStrength = (p.edgeStrength as number) / 100;
+    const eThresh = p.edgeThreshold as number;
+    if (eStrength > 0) {
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          let gx = 0, gy = 0;
+          for (let c = 0; c < 3; c++) {
+            const i00 = ((y - 1) * w + (x - 1)) * 4 + c;
+            const i01 = ((y - 1) * w + x) * 4 + c;
+            const i02 = ((y - 1) * w + (x + 1)) * 4 + c;
+            const i10 = (y * w + (x - 1)) * 4 + c;
+            const i12 = (y * w + (x + 1)) * 4 + c;
+            const i20 = ((y + 1) * w + (x - 1)) * 4 + c;
+            const i21 = ((y + 1) * w + x) * 4 + c;
+            const i22 = ((y + 1) * w + (x + 1)) * 4 + c;
+            gx += -sd[i00] - 2 * sd[i10] - sd[i20] + sd[i02] + 2 * sd[i12] + sd[i22];
+            gy += -sd[i00] - 2 * sd[i01] - sd[i02] + sd[i20] + 2 * sd[i21] + sd[i22];
+          }
+          const mag = Math.sqrt(gx * gx + gy * gy);
+          if (mag > eThresh) {
+            const ink = Math.min(1, ((mag - eThresh) / 255) * eStrength + 0.3);
+            const j = (y * w + x) * 4;
+            od[j] = od[j] * (1 - ink);
+            od[j + 1] = od[j + 1] * (1 - ink);
+            od[j + 2] = od[j + 2] * (1 - ink);
+          }
+        }
+      }
+    }
+
+    return out;
+  },
+};
+
+function boxBlur(src: Uint8ClampedArray, w: number, h: number, r: number, out: Uint8ClampedArray): Uint8ClampedArray {
+  const size = r * 2 + 1;
+  // Horizontal
+  const tmp = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r0 = 0, g0 = 0, b0 = 0, a0 = 0, c = 0;
+      for (let k = -r; k <= r; k++) {
+        const xx = Math.max(0, Math.min(w - 1, x + k));
+        const i = (y * w + xx) * 4;
+        r0 += src[i]; g0 += src[i + 1]; b0 += src[i + 2]; a0 += src[i + 3];
+        c++;
+      }
+      const j = (y * w + x) * 4;
+      tmp[j] = r0 / c; tmp[j + 1] = g0 / c; tmp[j + 2] = b0 / c; tmp[j + 3] = a0 / c;
+    }
+  }
+  // Vertical
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r0 = 0, g0 = 0, b0 = 0, a0 = 0, c = 0;
+      for (let k = -r; k <= r; k++) {
+        const yy = Math.max(0, Math.min(h - 1, y + k));
+        const i = (yy * w + x) * 4;
+        r0 += tmp[i]; g0 += tmp[i + 1]; b0 += tmp[i + 2]; a0 += tmp[i + 3];
+        c++;
+      }
+      const j = (y * w + x) * 4;
+      out[j] = r0 / c; out[j + 1] = g0 / c; out[j + 2] = b0 / c; out[j + 3] = a0 / c;
+    }
+  }
+  return out;
+}
+
+export const STYLIZES: FilterDef[] = [findEdges, emboss, solarize, oilPaint, diffuse, rotoscope];
