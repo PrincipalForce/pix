@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { EditorAPI } from "@/hooks/useEditor";
 
 interface Props {
@@ -16,14 +16,34 @@ type Menu = "file" | "edit" | "image" | "layer" | "view" | null;
 
 export default function MenuBar(p: Props) {
   const [open, setOpen] = useState<Menu>(null);
+  const barRef = useRef<HTMLDivElement>(null);
 
   const closeAndDo = (fn: () => void) => () => {
     setOpen(null);
     fn();
   };
 
+  // Close on click outside or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (barRef.current && !barRef.current.contains(e.target as Node)) {
+        setOpen(null);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(null);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <div className="menubar" onMouseLeave={() => setOpen(null)}>
+    <div className="menubar" ref={barRef}>
       <div className="brand">
         <span className="brand-dot" />
         <span className="brand-name">Pix.</span>
