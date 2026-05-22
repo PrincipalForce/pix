@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { EditorAPI } from "@/hooks/useEditor";
 import { compositeDocument, renderViewport, viewportToDoc } from "@/lib/render";
-import { paintSegment, fillLayer, bucketFill, createStrokeState, StrokeState } from "@/lib/brush";
+import { paintSegment, fillLayer, bucketFill, createStrokeState, StrokeState, drawGradient } from "@/lib/brush";
 import {
   drawSelectionAnts,
   ellipseSelection,
@@ -46,6 +46,11 @@ type Drag =
       startZoom: number;
       startPan: { x: number; y: number };
       startCenter: { x: number; y: number };
+    }
+  | {
+      kind: "gradient";
+      startDoc: { x: number; y: number };
+      currentDoc: { x: number; y: number };
     };
 
 type TransformHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rot";
@@ -56,6 +61,10 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   const offscreenOutputRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag>({ kind: "none" });
   const strokeStateRef = useRef<StrokeState | null>(null);
+  const [gradPreview, setGradPreview] = useState<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null>(null);
   const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>([]);
   const [antsOffset, setAntsOffset] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -139,10 +148,11 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       ctx.scale(api.view.zoom, api.view.zoom);
       drawSelectionAnts(ctx, api.selection, api.view.zoom, antsOffset);
       drawPolyInProgress(ctx, polyPoints, api.view.zoom, antsOffset);
+      if (gradPreview) drawGradientPreview(ctx, gradPreview, api.view.zoom);
       drawSelectedLayerOverlay(ctx, api);
       ctx.restore();
     });
-  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints]);
+  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints, gradPreview]);
 
   // Keep external composite output current for share/export
   useEffect(() => {
@@ -316,6 +326,13 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (api.tool === "gradient") {
+      const sel = api.selectedLayer;
+      if (!sel || sel.locked || sel.kind !== "raster") return;
+      dragRef.current = { kind: "gradient", startDoc: docPt, currentDoc: docPt };
+      return;
+    }
+
     if (api.tool === "fill") {
       const sel = api.selectedLayer;
       if (!sel) {
@@ -444,6 +461,12 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (drag.kind === "gradient") {
+      drag.currentDoc = docPt;
+      setGradPreview({ from: drag.startDoc, to: docPt });
+      return;
+    }
+
     if (drag.kind === "transform") {
       const layer = api.doc.layers.find((l) => l.id === drag.layerId);
       if (!layer) return;
@@ -463,6 +486,25 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       api.pushHistory("Move Layer");
     } else if (drag.kind === "marquee") {
       // already committed in onPointerMove
+    } else if (drag.kind === "gradient") {
+      const sel = api.selectedLayer;
+      if (sel && !sel.locked && sel.kind === "raster") {
+        const c0 = api.gradient.reverse ? api.background : api.foreground;
+        const c1 = api.gradient.reverse ? api.foreground : api.background;
+        drawGradient(
+          sel,
+          drag.startDoc,
+          drag.currentDoc,
+          api.gradient.kind,
+          c0,
+          c1,
+          api.selection,
+          api.doc.maskTargetActive
+        );
+        api.bump();
+        api.pushHistory(`Gradient (${api.gradient.kind})`);
+      }
+      setGradPreview(null);
     } else if (drag.kind === "transform") {
       api.pushHistory("Transform");
     }
@@ -558,6 +600,31 @@ function topmostLayerAt(api: EditorAPI, x: number, y: number) {
     }
   }
   return null;
+}
+
+function drawGradientPreview(
+  ctx: CanvasRenderingContext2D,
+  g: { from: { x: number; y: number }; to: { x: number; y: number } },
+  zoom: number
+) {
+  ctx.save();
+  ctx.lineWidth = 1 / zoom;
+  ctx.setLineDash([5 / zoom, 5 / zoom]);
+  ctx.strokeStyle = "#fff";
+  ctx.beginPath();
+  ctx.moveTo(g.from.x, g.from.y);
+  ctx.lineTo(g.to.x, g.to.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(g.from.x, g.from.y, 4 / zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(g.to.x, g.to.y, 4 / zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPolyInProgress(

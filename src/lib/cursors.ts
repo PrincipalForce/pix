@@ -88,6 +88,8 @@ export function cursorFor(
       return brushCursor(opts.brushRadiusPx ?? 10, true);
     case "fill":
       return svgCursor(fillSvg, 12, 18, "crosshair");
+    case "gradient":
+      return "crosshair";
     case "eyedropper":
       return svgCursor(eyedropperSvg, 3, 21, "crosshair");
     case "text":

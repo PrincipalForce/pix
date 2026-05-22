@@ -85,6 +85,43 @@ export default function OptionsBar({ api }: Props) {
           </button>
         </Field>
       )}
+      {t === "gradient" && (
+        <>
+          <Field label="Type">
+            {(["linear", "radial"] as const).map((k) => (
+              <button
+                key={k}
+                className={`pill ${api.gradient.kind === k ? "is-on" : ""}`}
+                onClick={() => api.setGradient({ ...api.gradient, kind: k })}
+              >
+                {k}
+              </button>
+            ))}
+          </Field>
+          <Field label="Colors">
+            <input
+              type="color"
+              value={api.foreground}
+              onChange={(e) => api.setForeground(e.target.value)}
+              title="Start color (foreground)"
+            />
+            <span style={{ color: "var(--text-mute)" }}>→</span>
+            <input
+              type="color"
+              value={api.background}
+              onChange={(e) => api.setBackgroundColor(e.target.value)}
+              title="End color (background)"
+            />
+            <button
+              className={`pill ${api.gradient.reverse ? "is-on" : ""}`}
+              onClick={() => api.setGradient({ ...api.gradient, reverse: !api.gradient.reverse })}
+              title="Reverse direction"
+            >
+              ⇄
+            </button>
+          </Field>
+        </>
+      )}
       <div className="ob-spacer" />
       <Field label="Zoom">
         <input
@@ -122,6 +159,7 @@ function labelFor(t: string) {
     brush: "Brush",
     eraser: "Eraser",
     fill: "Paint Bucket",
+    gradient: "Gradient",
     eyedropper: "Eyedropper",
     text: "Text",
     "shape-rect": "Rectangle",

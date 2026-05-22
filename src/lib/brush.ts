@@ -261,6 +261,55 @@ export function bucketFill(
   return true;
 }
 
+// Render a gradient from one doc-space point to another onto a layer's canvas (or mask).
+// Honors the current selection if present.
+export function drawGradient(
+  layer: Layer,
+  fromDoc: { x: number; y: number },
+  toDoc: { x: number; y: number },
+  kind: "linear" | "radial",
+  color0: string,
+  color1: string,
+  selection: Selection,
+  isMaskTarget: boolean
+): void {
+  const target = isMaskTarget ? layer.mask : layer.canvas;
+  if (!target) return;
+
+  // Convert doc points to layer-local pixel coords (accounts for rotation + scale).
+  const a = docToLayer(layer, fromDoc.x, fromDoc.y);
+  const b = docToLayer(layer, toDoc.x, toDoc.y);
+
+  const scratch = createCanvas(target.width, target.height);
+  const ctx = ctx2d(scratch);
+
+  let grad: CanvasGradient;
+  if (kind === "linear") {
+    grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+  } else {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const r = Math.max(1, Math.hypot(dx, dy));
+    grad = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, r);
+  }
+  grad.addColorStop(0, color0);
+  grad.addColorStop(1, color1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, scratch.width, scratch.height);
+
+  // Clip by selection (transformed into layer-local space).
+  if (selection.mask) {
+    const clip = layerLocalSelectionClip(layer, selection.mask);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(clip, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+  }
+
+  const t = ctx2d(target);
+  t.globalCompositeOperation = "source-over";
+  t.drawImage(scratch, 0, 0);
+}
+
 function hexToRgba(hex: string): { r: number; g: number; b: number; a: number } {
   let s = hex.trim();
   if (s.startsWith("#")) s = s.slice(1);

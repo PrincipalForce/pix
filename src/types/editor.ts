@@ -7,6 +7,7 @@ export type Tool =
   | "brush"
   | "eraser"
   | "fill"
+  | "gradient"
   | "eyedropper"
   | "text"
   | "shape-rect"
@@ -14,6 +15,13 @@ export type Tool =
   | "crop"
   | "hand"
   | "zoom";
+
+export interface GradientSettings {
+  kind: "linear" | "radial";
+  reverse: boolean;
+  // Colors are sourced from the editor's foreground/background at apply time so the
+  // gradient updates when the user changes either color.
+}
 
 export type LayerKind = "raster" | "text" | "shape";
 

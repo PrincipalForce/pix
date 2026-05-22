@@ -15,6 +15,7 @@ import {
   Crop,
   Hand,
   ZoomIn,
+  Palette,
 } from "lucide-react";
 import { Tool } from "@/types/editor";
 
@@ -46,6 +47,7 @@ const SECTIONS: Array<Array<{ id: Tool; Icon: any; label: string; shortcut: stri
     { id: "brush", Icon: Brush, label: "Brush", shortcut: "B" },
     { id: "eraser", Icon: Eraser, label: "Eraser", shortcut: "E" },
     { id: "fill", Icon: PaintBucket, label: "Paint Bucket", shortcut: "G" },
+    { id: "gradient", Icon: Palette, label: "Gradient", shortcut: "Shift+G" },
   ],
   [
     { id: "text", Icon: Type, label: "Text", shortcut: "T" },

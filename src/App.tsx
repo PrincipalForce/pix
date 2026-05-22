@@ -119,6 +119,11 @@ export default function App() {
         }
         return;
       }
+      // Shift+G cycles fill ↔ gradient (Photoshop convention).
+      if (e.key.toLowerCase() === "g" && e.shiftKey) {
+        api.setTool(api.tool === "gradient" ? "fill" : "gradient");
+        return;
+      }
       const tool = SHORTCUTS[e.key.toLowerCase()];
       if (tool) {
         api.setTool(tool);

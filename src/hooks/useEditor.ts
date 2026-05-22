@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrushSettings,
   DocumentState,
+  GradientSettings,
   Layer,
   Selection,
   Tool,
@@ -59,6 +60,7 @@ export function useEditor() {
   });
   const [foreground, setForeground] = useState("#111827");
   const [background, setBackgroundColor] = useState("#ffffff");
+  const [gradient, setGradient] = useState<GradientSettings>({ kind: "linear", reverse: false });
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -365,6 +367,8 @@ export function useEditor() {
     setForeground,
     background,
     setBackgroundColor,
+    gradient,
+    setGradient,
     selectedLayer,
     history,
     historyIndex,
