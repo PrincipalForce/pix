@@ -1,5 +1,6 @@
 import React from "react";
 import { EditorAPI } from "@/hooks/useEditor";
+import BrushPicker from "../UI/BrushPicker";
 
 interface Props {
   api: EditorAPI;
@@ -15,6 +16,12 @@ export default function OptionsBar({ api }: Props) {
       <div className="ob-sep" />
       {(t === "brush" || t === "eraser") && (
         <>
+          <Field label="Brush">
+            <BrushPicker
+              selectedId={api.brush.presetId}
+              onSelect={(id) => api.setBrush({ ...api.brush, presetId: id })}
+            />
+          </Field>
           <Field label="Size">
             <input
               type="number"

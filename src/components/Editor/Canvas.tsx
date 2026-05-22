@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { EditorAPI } from "@/hooks/useEditor";
 import { compositeDocument, renderViewport, viewportToDoc } from "@/lib/render";
-import { paintSegment, fillLayer, bucketFill } from "@/lib/brush";
+import { paintSegment, fillLayer, bucketFill, createStrokeState, StrokeState } from "@/lib/brush";
 import {
   drawSelectionAnts,
   ellipseSelection,
@@ -55,6 +55,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offscreenOutputRef = useRef<HTMLCanvasElement | null>(null);
   const dragRef = useRef<Drag>({ kind: "none" });
+  const strokeStateRef = useRef<StrokeState | null>(null);
   const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>([]);
   const [antsOffset, setAntsOffset] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -299,6 +300,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       if (sel.locked) return;
       if (api.doc.maskTargetActive && !sel.mask) return;
       const target = api.doc.maskTargetActive ? sel.mask! : sel.canvas;
+      strokeStateRef.current = createStrokeState();
       paintSegment(
         sel,
         target,
@@ -306,7 +308,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         api.brush,
         api.tool === "eraser",
         api.selection,
-        api.doc.maskTargetActive
+        api.doc.maskTargetActive,
+        strokeStateRef.current
       );
       api.bump();
       dragRef.current = { kind: "stroke", lastDoc: docPt };
@@ -408,7 +411,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         api.brush,
         api.tool === "eraser",
         api.selection,
-        api.doc.maskTargetActive
+        api.doc.maskTargetActive,
+        strokeStateRef.current ?? undefined
       );
       api.bump();
       drag.lastDoc = docPt;
@@ -453,6 +457,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     pointersRef.current.delete(e.pointerId);
     const drag = dragRef.current;
     if (drag.kind === "stroke") {
+      strokeStateRef.current = null;
       api.pushHistory(api.tool === "eraser" ? "Eraser Stroke" : "Brush Stroke");
     } else if (drag.kind === "move-layer") {
       api.pushHistory("Move Layer");
@@ -491,15 +496,30 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     }
   };
 
-  const cursor = cursorFor(api.tool, { brushRadiusPx: (api.brush.size / 2) * api.view.zoom });
+  // Track the most recently hovered point so we can show direction-aware resize cursors.
+  const [hoverHandle, setHoverHandle] = useState<TransformHandle | null>(null);
+  const onPointerHover = (e: React.PointerEvent) => {
+    if (api.tool !== "move" || !api.selectedLayer || api.selectedLayer.locked) {
+      if (hoverHandle) setHoverHandle(null);
+      return;
+    }
+    const docPt = ptDoc(e);
+    const h = hitTransformHandle(api, docPt, e.pointerType === "touch");
+    if (h !== hoverHandle) setHoverHandle(h);
+  };
+
+  let cursor = cursorFor(api.tool, { brushRadiusPx: (api.brush.size / 2) * api.view.zoom });
+  if (api.tool === "move" && hoverHandle && api.selectedLayer) {
+    cursor = resizeCursorFor(hoverHandle, api.selectedLayer.rotation);
+  }
 
   return (
     <div ref={wrapRef} className="canvas-stage" style={{ cursor, touchAction: "none" }}>
       <canvas
         ref={canvasRef}
         style={{ touchAction: "none" }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
+        onPointerDown={(e) => { onPointerHover(e); onPointerDown(e); }}
+        onPointerMove={(e) => { if (dragRef.current.kind === "none") onPointerHover(e); onPointerMove(e); }}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onWheel={onWheel}
@@ -649,6 +669,56 @@ function hitTransformHandle(
     if (Math.abs(lx - hx) <= hs && Math.abs(ly - hy) <= hs) return h;
   }
   return null;
+}
+
+// Direction-aware resize cursor for a hovered transform handle.
+// Renders a 24x24 SVG double-headed arrow rotated to point along the handle's axis,
+// then composites with the layer's rotation so it stays accurate even when the layer is rotated.
+function resizeCursorFor(handle: TransformHandle, layerRotation: number): string {
+  if (handle === "rot") return "grab";
+  // Base axis angle in degrees for each handle.
+  const baseAngle: Record<Exclude<TransformHandle, "rot">, number> = {
+    e: 0,
+    w: 0,
+    n: 90,
+    s: 90,
+    ne: -45,
+    sw: -45,
+    nw: 45,
+    se: 45,
+  };
+  const angle = baseAngle[handle as Exclude<TransformHandle, "rot">] + (layerRotation * 180) / Math.PI;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'>
+<g transform='rotate(${angle} 12 12)'>
+  <path d='M3 12 L21 12 M3 12 L7 8 M3 12 L7 16 M21 12 L17 8 M21 12 L17 16'
+        stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/>
+  <path d='M3 12 L21 12 M3 12 L7 8 M3 12 L7 16 M21 12 L17 8 M21 12 L17 16'
+        stroke='black' stroke-width='1.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/>
+</g>
+</svg>`;
+  const enc = encodeURIComponent(svg).replace(/'/g, "%27").replace(/"/g, "%22");
+  // CSS fallback cursors per axis so the OS shows a sensible icon if the SVG is rejected.
+  const fallback = fallbackResizeCursor(handle, layerRotation);
+  return `url("data:image/svg+xml;charset=utf-8,${enc}") 12 12, ${fallback}`;
+}
+
+function fallbackResizeCursor(handle: TransformHandle, rotation: number): string {
+  // Snap rotation to the nearest 45° bucket to pick a sensible OS cursor.
+  const deg = ((rotation * 180) / Math.PI) % 360;
+  const norm = ((deg + 360) % 360);
+  const quad = Math.round(norm / 45) % 8; // 0..7 in 45° steps
+  // Tables: for each handle (base orientation), bucket [0..7] mapping the axis.
+  const base: Record<Exclude<TransformHandle, "rot">, string[]> = {
+    e:  ["ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize"],
+    w:  ["ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize"],
+    n:  ["ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize"],
+    s:  ["ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize"],
+    ne: ["nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize"],
+    sw: ["nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize"],
+    nw: ["nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize"],
+    se: ["nwse-resize", "ew-resize", "nesw-resize", "ns-resize", "nwse-resize", "ew-resize", "nesw-resize", "ns-resize"],
+  };
+  return base[handle as Exclude<TransformHandle, "rot">][quad];
 }
 
 function computeTransformPatch(

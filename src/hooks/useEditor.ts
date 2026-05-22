@@ -24,6 +24,7 @@ import {
 } from "@/lib/document";
 import { emptySelection } from "@/lib/selection";
 import { fitViewport } from "@/lib/render";
+import { Step } from "@/lib/actions/types";
 
 const HISTORY_LIMIT = 60;
 
@@ -54,6 +55,7 @@ export function useEditor() {
     color: "#000000",
     opacity: 1,
     flow: 1,
+    presetId: "medium-round",
   });
   const [foreground, setForeground] = useState("#111827");
   const [background, setBackgroundColor] = useState("#ffffff");
@@ -62,6 +64,23 @@ export function useEditor() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const restoringRef = useRef(false);
   const tickRef = useRef(0);
+
+  // Action recording: when recordingRef.current is non-null, recordStep() appends to it.
+  const recordingRef = useRef<Step[] | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const startRecording = useCallback(() => {
+    recordingRef.current = [];
+    setIsRecording(true);
+  }, []);
+  const stopRecording = useCallback((): Step[] => {
+    const steps = recordingRef.current ?? [];
+    recordingRef.current = null;
+    setIsRecording(false);
+    return steps;
+  }, []);
+  const recordStep = useCallback((step: Step) => {
+    if (recordingRef.current) recordingRef.current.push(step);
+  }, []);
 
   // Bump on any in-place canvas mutation (brush stroke) so React re-renders
   const [dirtyTick, setDirty] = useState(0);
@@ -177,6 +196,7 @@ export function useEditor() {
 
   const addFillLayer = useCallback(
     (color: string, name = "Background", asBottom = true) => {
+      recordStep({ type: "addFillLayer", color, name });
       const layer = createRasterLayer({
         name,
         width: doc.width,
@@ -198,6 +218,7 @@ export function useEditor() {
   );
 
   const addBlankLayer = useCallback(() => {
+    recordStep({ type: "addBlankLayer" });
     const layer = createRasterLayer({
       name: `Layer ${doc.layers.length + 1}`,
       width: doc.width,
@@ -255,6 +276,7 @@ export function useEditor() {
   );
 
   const duplicateSelectedLayer = useCallback(() => {
+    recordStep({ type: "duplicateLayer" });
     setDoc((d) => {
       const idx = d.layers.findIndex((l) => l.id === d.selectedLayerId);
       if (idx < 0) return d;
@@ -311,18 +333,20 @@ export function useEditor() {
 
   const applyCanvasSize = useCallback(
     (w: number, h: number, anchor: Parameters<typeof resizeCanvasSize>[3]) => {
+      recordStep({ type: "canvasSize", width: w, height: h, anchor });
       setDoc((d) => resizeCanvasSize(d, w, h, anchor));
       setTimeout(() => pushHistory("Canvas Size"), 0);
     },
-    [pushHistory]
+    [pushHistory, recordStep]
   );
 
   const applyImageSize = useCallback(
     (w: number, h: number) => {
+      recordStep({ type: "imageSize", width: w, height: h });
       setDoc((d) => resampleDocument(d, w, h));
       setTimeout(() => pushHistory("Image Size"), 0);
     },
-    [pushHistory]
+    [pushHistory, recordStep]
   );
 
   return {
@@ -370,6 +394,11 @@ export function useEditor() {
     undo,
     redo,
     jumpHistory,
+    // Recording
+    isRecording,
+    startRecording,
+    stopRecording,
+    recordStep,
   };
 }
 

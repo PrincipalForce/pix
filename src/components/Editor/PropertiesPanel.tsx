@@ -1,6 +1,7 @@
 import React from "react";
 import { EditorAPI } from "@/hooks/useEditor";
 import { renderTextLayer, renderShapeLayer } from "@/lib/document";
+import FontPicker from "../UI/FontPicker";
 
 interface Props {
   api: EditorAPI;
@@ -212,25 +213,16 @@ function renderLayerSection(api: EditorAPI) {
             />
           </Row>
           <Row label="Font">
-            <select
-              className="input"
+            <FontPicker
               value={layer.text.fontFamily}
-              onChange={(e) => {
-                const t = { ...layer.text!, fontFamily: e.target.value };
+              onChange={(family) => {
+                const t = { ...layer.text!, fontFamily: family };
                 const updated = { ...layer, text: t };
                 renderTextLayer(updated);
                 api.updateLayer(layer.id, { text: t });
                 api.bump();
               }}
-            >
-              {["Inter", "Arial", "Helvetica", "Georgia", "Times New Roman", "Courier New", "monospace"].map(
-                (f) => (
-                  <option key={f} value={f}>
-                    {f}
-                  </option>
-                )
-              )}
-            </select>
+            />
           </Row>
           <Row label="Size">
             <NumberInput

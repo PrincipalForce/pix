@@ -106,10 +106,12 @@ export interface Selection {
 
 export interface BrushSettings {
   size: number;
-  hardness: number; // 0..1
+  hardness: number; // 0..1 (only used by built-in soft-round when chosen)
   color: string;
   opacity: number; // 0..1
   flow: number; // 0..1
+  presetId: string; // brush preset id (see lib/brushes)
+  spacing?: number; // overrides preset spacing if defined
 }
 
 export interface HistoryEntry {

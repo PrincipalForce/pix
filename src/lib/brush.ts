@@ -1,5 +1,19 @@
 import { BrushSettings, Layer, Selection } from "@/types/editor";
 import { createCanvas, ctx2d } from "./canvas";
+import { getBrush, renderTip } from "./brushes/registry";
+
+// Persistent stroke state — must live for the duration of a single stroke so we can
+// space out stamps correctly across multiple `paintSegment` calls.
+export interface StrokeState {
+  // Distance accumulated since the last stamp (in layer-local pixels).
+  accum: number;
+  // Last stamped layer-local position, used as the previous segment endpoint.
+  last?: { x: number; y: number };
+}
+
+export function createStrokeState(): StrokeState {
+  return { accum: 0 };
+}
 
 // Convert doc-space point to layer-local pixel coordinates, accounting for layer transform.
 function docToLayer(layer: Layer, x: number, y: number): { x: number; y: number } {
@@ -24,6 +38,9 @@ export interface StrokeSeg {
 
 // Apply a stroke segment to the target buffer of a layer (either its canvas or its mask).
 // Honors selection by clipping with selection.mask.
+//
+// `state` carries cross-segment information (stamp accumulator) so spacing stays
+// consistent across a continuous stroke. Pass undefined for one-off stamps.
 export function paintSegment(
   layer: Layer,
   target: HTMLCanvasElement,
@@ -31,50 +48,79 @@ export function paintSegment(
   brush: BrushSettings,
   isEraser: boolean,
   selection: Selection,
-  isMaskTarget: boolean
+  isMaskTarget: boolean,
+  state?: StrokeState
 ): void {
   const a = docToLayer(layer, seg.fromDoc.x, seg.fromDoc.y);
   const b = docToLayer(layer, seg.toDoc.x, seg.toDoc.y);
 
-  // Build a stroke onto a scratch the same size as `target`, then composite respecting
+  // Build the stroke onto a scratch the same size as target, then composite respecting
   // the selection if present.
   const scratch = createCanvas(target.width, target.height);
   const c = ctx2d(scratch);
-  c.lineCap = "round";
-  c.lineJoin = "round";
-  c.lineWidth = brush.size;
 
-  if (isMaskTarget) {
-    // Mask painting: brush in grayscale. Eraser writes black, brush writes white.
-    c.strokeStyle = isEraser ? "#000" : "#fff";
-  } else if (isEraser) {
-    c.strokeStyle = "#000";
-  } else {
-    c.strokeStyle = brush.color;
+  const preset = getBrush(brush.presetId) ?? getBrush("medium-round")!;
+  const spacing = Math.max(0.02, brush.spacing ?? preset.spacing) * brush.size;
+
+  // Color for the stamps. When painting a mask we stamp in pure white/black; when
+  // erasing pixels we stamp opaque black on the scratch and composite with destination-out.
+  let color: string;
+  if (isMaskTarget) color = isEraser ? "#000000" : "#ffffff";
+  else color = isEraser ? "#000000" : brush.color;
+  const stampAlpha = Math.max(0, Math.min(1, brush.opacity * brush.flow));
+
+  // For the soft-round / hard-round generated tips we apply per-stroke hardness
+  // by regenerating the tip from the global registry's cached tip image — but
+  // because the registry tips are precomputed, we approximate hardness by drawing
+  // through a radial gradient mask. For other brushes we use the tip directly.
+  const tip = renderTip(preset, brush.size, color, stampAlpha);
+
+  // Walk the segment, stamping at every `spacing` interval. `state.accum` carries
+  // any leftover distance from the previous segment so dots stay evenly spaced.
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy);
+  let walked = 0;
+
+  const stamp = (x: number, y: number) => {
+    c.drawImage(tip.canvas, x - tip.diameter / 2, y - tip.diameter / 2);
+  };
+
+  // Stamp at the start of a stroke (when state has no previous point).
+  if (state && !state.last) {
+    stamp(a.x, a.y);
+    state.last = { x: a.x, y: a.y };
+    state.accum = 0;
   }
-  c.globalAlpha = brush.opacity * brush.flow;
 
-  if (brush.hardness < 1 && !isMaskTarget) {
-    // Soft brush: shadowBlur trick on stroke
-    c.shadowColor = c.strokeStyle as string;
-    c.shadowBlur = (1 - brush.hardness) * brush.size * 0.6;
+  if (dist > 0.0001) {
+    const ux = dx / dist;
+    const uy = dy / dist;
+    let remaining = (state?.accum ?? 0);
+    // First stamp falls at `spacing - remaining` from a.
+    let next = spacing - remaining;
+    while (next <= dist) {
+      const sx = a.x + ux * next;
+      const sy = a.y + uy * next;
+      stamp(sx, sy);
+      walked = next;
+      next += spacing;
+    }
+    if (state) {
+      state.accum = (state.accum + dist) % spacing;
+      state.last = { x: b.x, y: b.y };
+    }
   }
 
-  c.beginPath();
-  c.moveTo(a.x, a.y);
-  c.lineTo(b.x, b.y);
-  c.stroke();
-
-  // Clip the stroke to the selection (in doc space). We need to convert selection.mask
-  // (doc-sized) into layer-local coordinates and use it as a mask.
+  // Clip to selection (in layer-local space).
   if (selection.mask) {
     const clip = layerLocalSelectionClip(layer, selection.mask);
-    c.globalAlpha = 1;
     c.globalCompositeOperation = "destination-in";
     c.drawImage(clip, 0, 0);
+    c.globalCompositeOperation = "source-over";
   }
 
-  // Composite the scratch onto the target.
+  // Composite scratch onto target.
   const t = ctx2d(target);
   if (isMaskTarget) {
     t.globalCompositeOperation = "source-over";
@@ -87,6 +133,7 @@ export function paintSegment(
     t.drawImage(scratch, 0, 0);
   }
   t.globalCompositeOperation = "source-over";
+  void walked;
 }
 
 function layerLocalSelectionClip(

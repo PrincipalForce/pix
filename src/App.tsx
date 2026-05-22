@@ -3,6 +3,8 @@ import Canvas from "./components/Editor/Canvas";
 import ToolPanel from "./components/Editor/ToolPanel";
 import LayersPanel from "./components/Editor/LayersPanel";
 import HistoryPanel from "./components/Editor/HistoryPanel";
+import ActionsPanel from "./components/Editor/ActionsPanel";
+import Splash from "./components/UI/Splash";
 import FilterPanel from "./components/Editor/FilterPanel";
 import PropertiesPanel from "./components/Editor/PropertiesPanel";
 import OptionsBar from "./components/Editor/OptionsBar";
@@ -19,6 +21,7 @@ import { useEditor } from "./hooks/useEditor";
 import { Tool } from "./types/editor";
 import { createTextLayer, createShapeLayer, renderTextLayer } from "./lib/document";
 import { Menu, PanelRight, Layers as LayersIcon, X } from "lucide-react";
+import { rehydrateCustomFonts } from "./lib/fonts";
 
 const SHORTCUTS: Record<string, Tool> = {
   v: "move",
@@ -54,6 +57,11 @@ export default function App() {
   const openGallery = useCallback((filterId?: string) => {
     setGalleryFilterId(filterId ?? null);
     setGalleryOpen(true);
+  }, []);
+
+  // Restore any custom fonts the user imported in a previous session.
+  useEffect(() => {
+    void rehydrateCustomFonts();
   }, []);
 
   const openFile = useCallback(
@@ -209,6 +217,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Splash />
       <MenuBar
         api={api}
         onNew={() => setShowNew(true)}
@@ -281,6 +290,7 @@ export default function App() {
           <PropertiesPanel api={api} />
           <LayersPanel api={api} />
           <FilterPanel api={api} onOpenGallery={openGallery} />
+          <ActionsPanel api={api} />
           <HistoryPanel api={api} />
         </aside>
       </div>

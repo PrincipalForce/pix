@@ -99,6 +99,7 @@ export default function FilterGalleryDialog({ api, initialFilterId, initialPrese
     const out = selectedDef.apply(src, params);
     ctx.putImageData(out, 0, 0);
     api.bump();
+    api.recordStep({ type: "applyFilter", filterId: selectedDef.id, params: { ...params } });
     api.pushHistory(`Filter: ${selectedDef.name}`);
     onClose();
   };
