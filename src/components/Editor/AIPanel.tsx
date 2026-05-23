@@ -176,13 +176,7 @@ export default function AIPanel({ api, onOpenSettings }: Props) {
   };
 
   return (
-    <div className="panel ai-panel">
-      <div className="panel-head ai-head">
-        <span className="panel-title">AI Assistant</span>
-        <button className="icon-btn" onClick={onOpenSettings} title="AI Settings">
-          <SettingsIcon size={14} />
-        </button>
-      </div>
+    <div className="ai-panel">
       <div className="ai-quick">
         <div className="ai-prov">
           {(["gemini", "openai"] as const).map((p) => (

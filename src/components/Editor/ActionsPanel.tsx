@@ -89,10 +89,7 @@ export default function ActionsPanel({ api }: Props) {
   };
 
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="panel-title">Actions</span>
-      </div>
+    <>
       <div className="actions-controls">
         <button
           className={`hbtn ${api.isRecording ? "is-recording" : ""}`}
@@ -169,6 +166,6 @@ export default function ActionsPanel({ api }: Props) {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }

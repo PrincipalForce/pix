@@ -8,10 +8,7 @@ interface Props {
 
 export default function HistoryPanel({ api }: Props) {
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="panel-title">History</span>
-      </div>
+    <>
       <div className="history-controls">
         <button
           className="hbtn"
@@ -45,6 +42,6 @@ export default function HistoryPanel({ api }: Props) {
           </button>
         ))}
       </div>
-    </div>
+    </>
   );
 }

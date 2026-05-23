@@ -260,6 +260,33 @@ input, select, textarea {
 }
 .panel-title { font-weight: 600; }
 
+/* Collapsible-section header */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 6px;
+  cursor: default;
+}
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 4px 4px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.section-toggle:hover { color: var(--text); background: var(--bg-3); }
+.section-actions { display: inline-flex; align-items: center; gap: 4px; }
+.section-body { display: block; }
+.panel.is-collapsed { border-bottom: 1px solid var(--line); }
+
 /* Layers panel */
 .panel-toolbar {
   display: grid;
@@ -638,7 +665,18 @@ input[type="range"]::-moz-range-thumb {
   align-items: start;
 }
 .ai-label { display: flex; flex-direction: column; gap: 2px; }
-.ai-name { font-weight: 600; }
+.ai-name { font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.env-tag {
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-strong);
+  color: var(--text-mute);
+}
 .ai-help { color: var(--text-mute); font-size: 11.5px; }
 .ai-help a { color: var(--accent); }
 .ai-input { display: flex; gap: 6px; }

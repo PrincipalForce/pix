@@ -1,7 +1,15 @@
 import React, { useState } from "react";
 import Modal from "./Modal";
 import { Eye, EyeOff } from "lucide-react";
-import { getKey, getModels, ProviderId, setKey, setModel } from "@/lib/ai/settings";
+import {
+  clearUserKey,
+  getKey,
+  getKeySource,
+  getModels,
+  ProviderId,
+  setKey,
+  setModel,
+} from "@/lib/ai/settings";
 
 interface Props {
   onClose: () => void;
@@ -57,7 +65,11 @@ export default function AISettingsDialog({ onClose }: Props) {
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
 
   const save = () => {
-    (Object.keys(values) as ProviderId[]).forEach((k) => setKey(k, values[k]));
+    (Object.keys(values) as ProviderId[]).forEach((k) => {
+      const v = values[k];
+      if (v.trim()) setKey(k, v);
+      else clearUserKey(k);
+    });
     setModel("anthropic", models.anthropic);
     setModel("gemini", models.gemini);
     setModel("openai", models.openai);
@@ -71,36 +83,46 @@ export default function AISettingsDialog({ onClose }: Props) {
         forwarded.
       </p>
       <div className="ai-settings">
-        {FIELDS.map((f) => (
-          <div key={f.id} className="ai-row">
-            <div className="ai-label">
-              <div className="ai-name">{f.label}</div>
-              <div className="ai-help">
-                {f.help}{" "}
-                <a href={f.signupUrl} target="_blank" rel="noreferrer">
-                  Get a key →
-                </a>
+        {FIELDS.map((f) => {
+          const source = getKeySource(f.id);
+          const hasUser = !!values[f.id];
+          // When the input is empty and an env var supplies a key, the field is effectively
+          // showing "(from env)" rather than the user-entered value.
+          const envActive = source === "env" && !hasUser;
+          return (
+            <div key={f.id} className="ai-row">
+              <div className="ai-label">
+                <div className="ai-name">
+                  {f.label}
+                  {envActive && <span className="env-tag">from env</span>}
+                </div>
+                <div className="ai-help">
+                  {f.help}{" "}
+                  <a href={f.signupUrl} target="_blank" rel="noreferrer">
+                    Get a key →
+                  </a>
+                </div>
+              </div>
+              <div className="ai-input">
+                <input
+                  className="input mono"
+                  type={reveal[f.id] ? "text" : "password"}
+                  placeholder={envActive ? "(using env var — leave blank)" : `${f.id} key`}
+                  value={values[f.id]}
+                  onChange={(e) => setValues({ ...values, [f.id]: e.target.value })}
+                />
+                <button
+                  className="icon-btn"
+                  onClick={() => setReveal({ ...reveal, [f.id]: !reveal[f.id] })}
+                  type="button"
+                  title={reveal[f.id] ? "Hide" : "Show"}
+                >
+                  {reveal[f.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
               </div>
             </div>
-            <div className="ai-input">
-              <input
-                className="input mono"
-                type={reveal[f.id] ? "text" : "password"}
-                placeholder={`${f.id} key`}
-                value={values[f.id]}
-                onChange={(e) => setValues({ ...values, [f.id]: e.target.value })}
-              />
-              <button
-                className="icon-btn"
-                onClick={() => setReveal({ ...reveal, [f.id]: !reveal[f.id] })}
-                type="button"
-                title={reveal[f.id] ? "Hide" : "Show"}
-              >
-                {reveal[f.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         <h4 className="ai-section">Models</h4>
         <div className="ai-row">

@@ -32,10 +32,7 @@ export default function FilterPanel({ api, onOpenGallery }: Props) {
     .filter((f): f is NonNullable<typeof f> => !!f);
 
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="panel-title">Filters</span>
-      </div>
+    <>
       <div className="filter-grid">
         {quick.map((f) => (
           <button
@@ -66,6 +63,6 @@ export default function FilterPanel({ api, onOpenGallery }: Props) {
             : "Select a raster layer to apply filters."}
         </div>
       )}
-    </div>
+    </>
   );
 }

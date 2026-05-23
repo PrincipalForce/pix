@@ -45,10 +45,7 @@ export default function LayersPanel({ api }: Props) {
   const ordered = useMemo(() => [...api.doc.layers].reverse(), [api.doc.layers, api.dirtyTick]);
 
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span className="panel-title">Layers</span>
-      </div>
+    <>
       <div className="panel-toolbar">
         <select
           value={api.selectedLayer?.blendMode ?? "normal"}
@@ -234,6 +231,6 @@ export default function LayersPanel({ api }: Props) {
           <Trash2 size={14} />
         </button>
       </div>
-    </div>
+    </>
   );
 }

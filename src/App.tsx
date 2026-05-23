@@ -7,6 +7,8 @@ import ActionsPanel from "./components/Editor/ActionsPanel";
 import AIPanel from "./components/Editor/AIPanel";
 import AISettingsDialog from "./components/UI/AISettingsDialog";
 import Splash from "./components/UI/Splash";
+import CollapsibleSection from "./components/UI/CollapsibleSection";
+import { Settings as SettingsIcon } from "lucide-react";
 import FilterPanel from "./components/Editor/FilterPanel";
 import PropertiesPanel from "./components/Editor/PropertiesPanel";
 import OptionsBar from "./components/Editor/OptionsBar";
@@ -307,12 +309,36 @@ export default function App() {
           >
             <X size={16} />
           </button>
-          <AIPanel api={api} onOpenSettings={() => setShowAISettings(true)} />
-          <PropertiesPanel api={api} />
-          <LayersPanel api={api} />
-          <FilterPanel api={api} onOpenGallery={openGallery} />
-          <ActionsPanel api={api} />
-          <HistoryPanel api={api} />
+          <CollapsibleSection
+            id="ai"
+            title="AI Assistant"
+            actions={
+              <button
+                className="icon-btn"
+                onClick={() => setShowAISettings(true)}
+                title="AI Settings"
+              >
+                <SettingsIcon size={14} />
+              </button>
+            }
+          >
+            <AIPanel api={api} onOpenSettings={() => setShowAISettings(true)} />
+          </CollapsibleSection>
+          <CollapsibleSection id="properties" title="Properties">
+            <PropertiesPanel api={api} />
+          </CollapsibleSection>
+          <CollapsibleSection id="layers" title="Layers">
+            <LayersPanel api={api} />
+          </CollapsibleSection>
+          <CollapsibleSection id="filters" title="Filters" defaultCollapsed>
+            <FilterPanel api={api} onOpenGallery={openGallery} />
+          </CollapsibleSection>
+          <CollapsibleSection id="actions" title="Actions" defaultCollapsed>
+            <ActionsPanel api={api} />
+          </CollapsibleSection>
+          <CollapsibleSection id="history" title="History" defaultCollapsed>
+            <HistoryPanel api={api} />
+          </CollapsibleSection>
         </aside>
       </div>
 

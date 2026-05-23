@@ -11,14 +11,9 @@ interface Props {
 // Shows tool-specific OR layer-specific controls based on what's active.
 export default function PropertiesPanel({ api }: Props) {
   return (
-    <div className="panel properties">
-      <div className="panel-head">
-        <span className="panel-title">Properties</span>
-      </div>
-      <div className="prop-body">
-        {renderToolSection(api)}
-        {renderLayerSection(api)}
-      </div>
+    <div className="prop-body">
+      {renderToolSection(api)}
+      {renderLayerSection(api)}
     </div>
   );
 }
