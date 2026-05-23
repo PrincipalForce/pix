@@ -104,7 +104,18 @@ export default function App() {
         }
         if (e.key.toLowerCase() === "d") {
           e.preventDefault();
-          api.setSelection({ mask: null, bounds: null });
+          if (e.shiftKey) api.reselect();
+          else api.deselectAll();
+          return;
+        }
+        if (e.key.toLowerCase() === "a" && !e.shiftKey) {
+          e.preventDefault();
+          api.selectAllDoc();
+          return;
+        }
+        if (e.key.toLowerCase() === "i" && e.shiftKey) {
+          e.preventDefault();
+          api.invertSelection();
           return;
         }
         if (e.key.toLowerCase() === "e" && e.shiftKey) {

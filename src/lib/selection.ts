@@ -1,4 +1,4 @@
-import { Selection } from "@/types/editor";
+import { Layer, Selection } from "@/types/editor";
 import { createCanvas, ctx2d } from "./canvas";
 
 export function emptySelection(): Selection {
@@ -236,6 +236,119 @@ function tintMask(mask: HTMLCanvasElement, color: string): HTMLCanvasElement {
   ctx.globalCompositeOperation = "destination-in";
   ctx.drawImage(mask, 0, 0);
   return out;
+}
+
+// --- Selection operations -------------------------------------------------
+
+export function selectAll(docW: number, docH: number): Selection {
+  return rectSelection(docW, docH, 0, 0, docW, docH);
+}
+
+// Inverse: produce a mask that selects everything currently unselected.
+export function invertSelection(sel: Selection, docW: number, docH: number): Selection {
+  if (!sel.mask) return emptySelection();
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  // Start fully selected (white), then knock out the existing selection.
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, docW, docH);
+  // Convert the existing mask to alpha-based shape, then subtract.
+  ctx.globalCompositeOperation = "destination-out";
+  // The mask uses opaque white where selected; drawImage of it directly knocks the right pixels out.
+  ctx.drawImage(sel.mask, 0, 0);
+  ctx.globalCompositeOperation = "source-over";
+  return {
+    mask: out,
+    bounds: { x: 0, y: 0, width: docW, height: docH },
+  };
+}
+
+// Selection from the alpha of a layer (its visible pixels become the selection).
+export function selectFromLayerAlpha(
+  layer: Layer,
+  docW: number,
+  docH: number
+): Selection {
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  ctx.save();
+  ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
+  ctx.rotate(layer.rotation);
+  // Draw the layer's pixels — alpha becomes the selection.
+  ctx.drawImage(layer.canvas, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
+  ctx.restore();
+  // Force the RGB to white so it's a pure alpha mask.
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, docW, docH);
+  ctx.globalCompositeOperation = "source-over";
+  // Compute bounds
+  const bounds = maskBounds(out);
+  return { mask: out, bounds };
+}
+
+// Feather: Gaussian blur the alpha edge of the selection mask.
+export function featherSelection(sel: Selection, radius: number, docW: number, docH: number): Selection {
+  if (!sel.mask || radius <= 0) return sel;
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  ctx.filter = `blur(${radius}px)`;
+  ctx.drawImage(sel.mask, 0, 0);
+  ctx.filter = "none";
+  return { mask: out, bounds: maskBounds(out) };
+}
+
+// Expand: dilate the selection by `px`. Implemented via blur+threshold for speed.
+export function expandSelection(sel: Selection, px: number, docW: number, docH: number): Selection {
+  if (!sel.mask || px <= 0) return sel;
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  ctx.filter = `blur(${px}px)`;
+  ctx.drawImage(sel.mask, 0, 0);
+  ctx.filter = "none";
+  thresholdAlphaInPlace(out, 8); // anything with even a little alpha after blur becomes selected
+  return { mask: out, bounds: maskBounds(out) };
+}
+
+// Contract: erode the selection by `px`. Blur+high-threshold approximation.
+export function contractSelection(sel: Selection, px: number, docW: number, docH: number): Selection {
+  if (!sel.mask || px <= 0) return sel;
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  ctx.filter = `blur(${px}px)`;
+  ctx.drawImage(sel.mask, 0, 0);
+  ctx.filter = "none";
+  thresholdAlphaInPlace(out, 220); // keep only highly-covered pixels
+  return { mask: out, bounds: maskBounds(out) };
+}
+
+function thresholdAlphaInPlace(c: HTMLCanvasElement, t: number): void {
+  const ctx = ctx2d(c);
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = d[i + 3] >= t ? 255 : 0;
+    d[i] = 255; d[i + 1] = 255; d[i + 2] = 255; d[i + 3] = a;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function maskBounds(c: HTMLCanvasElement): Selection["bounds"] {
+  const w = c.width, h = c.height;
+  const data = ctx2d(c).getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4 + 3] > 8) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;
+  return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
 let stripeCache: { offset: number; pattern: CanvasPattern } | null = null;

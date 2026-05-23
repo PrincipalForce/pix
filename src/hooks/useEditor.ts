@@ -23,7 +23,15 @@ import {
   restoreDocument,
   snapshotDocument,
 } from "@/lib/document";
-import { emptySelection } from "@/lib/selection";
+import {
+  emptySelection,
+  invertSelection,
+  selectAll,
+  selectFromLayerAlpha,
+  featherSelection,
+  expandSelection,
+  contractSelection,
+} from "@/lib/selection";
 import { fitViewport } from "@/lib/render";
 import { Step } from "@/lib/actions/types";
 
@@ -49,7 +57,15 @@ export function useEditor() {
   });
   const [tool, setTool] = useState<Tool>("move");
   const [view, setView] = useState<Viewport>({ zoom: 1, panX: 0, panY: 0 });
-  const [selection, setSelection] = useState<Selection>(emptySelection());
+  const [selection, setSelectionRaw] = useState<Selection>(emptySelection());
+  const lastSelectionRef = useRef<Selection | null>(null);
+  const setSelection = useCallback((next: Selection) => {
+    // Whenever a real selection becomes empty, remember the previous one for Reselect.
+    setSelectionRaw((prev) => {
+      if (prev.mask && !next.mask) lastSelectionRef.current = prev;
+      return next;
+    });
+  }, []);
   const [brush, setBrush] = useState<BrushSettings>({
     size: 24,
     hardness: 0.85,
@@ -331,6 +347,46 @@ export function useEditor() {
     setTimeout(() => pushHistory("Remove Mask"), 0);
   }, [doc.selectedLayerId, pushHistory]);
 
+  // --- Selection operations ---
+
+  const selectAllDoc = useCallback(() => {
+    setSelection(selectAll(doc.width, doc.height));
+  }, [doc.width, doc.height, setSelection]);
+
+  const deselectAll = useCallback(() => {
+    setSelection(emptySelection());
+  }, [setSelection]);
+
+  const reselect = useCallback(() => {
+    if (lastSelectionRef.current) setSelectionRaw(lastSelectionRef.current);
+  }, []);
+
+  const invertSel = useCallback(() => {
+    if (!selection.mask) {
+      setSelection(selectAll(doc.width, doc.height));
+      return;
+    }
+    setSelection(invertSelection(selection, doc.width, doc.height));
+  }, [selection, doc.width, doc.height, setSelection]);
+
+  const selectLayerAlpha = useCallback(() => {
+    const layer = doc.layers.find((l) => l.id === doc.selectedLayerId);
+    if (!layer) return;
+    setSelection(selectFromLayerAlpha(layer, doc.width, doc.height));
+  }, [doc.layers, doc.selectedLayerId, doc.width, doc.height, setSelection]);
+
+  const featherSel = useCallback((radius: number) => {
+    setSelection(featherSelection(selection, radius, doc.width, doc.height));
+  }, [selection, doc.width, doc.height, setSelection]);
+
+  const expandSel = useCallback((px: number) => {
+    setSelection(expandSelection(selection, px, doc.width, doc.height));
+  }, [selection, doc.width, doc.height, setSelection]);
+
+  const contractSel = useCallback((px: number) => {
+    setSelection(contractSelection(selection, px, doc.width, doc.height));
+  }, [selection, doc.width, doc.height, setSelection]);
+
   // --- canvas/image size ---
 
   const applyCanvasSize = useCallback(
@@ -394,6 +450,15 @@ export function useEditor() {
     // Size
     applyCanvasSize,
     applyImageSize,
+    // Selection ops
+    selectAllDoc,
+    deselectAll,
+    reselect,
+    invertSelection: invertSel,
+    selectLayerAlpha,
+    featherSel,
+    expandSel,
+    contractSel,
     // History
     undo,
     redo,

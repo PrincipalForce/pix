@@ -14,7 +14,7 @@ interface Props {
   onOpenAISettings: () => void;
 }
 
-type Menu = "file" | "edit" | "image" | "layer" | "filter" | "view" | null;
+type Menu = "file" | "edit" | "image" | "layer" | "select" | "filter" | "view" | null;
 
 export default function MenuBar(p: Props) {
   const [open, setOpen] = useState<Menu>(null);
@@ -68,8 +68,6 @@ export default function MenuBar(p: Props) {
           onClick={closeAndDo(p.api.redo)}
           disabled={p.api.historyIndex >= p.api.history.length - 1}
         />
-        <Sep />
-        <Item label="Deselect" shortcut="⌘D" onClick={closeAndDo(() => p.api.setSelection({ mask: null, bounds: null }))} />
       </Menu>
 
       <Menu name="Image" open={open === "image"} onOpen={() => setOpen("image")}>
@@ -112,6 +110,41 @@ export default function MenuBar(p: Props) {
             else p.api.addMaskToSelected();
           })}
           disabled={!p.api.selectedLayer}
+        />
+      </Menu>
+
+      <Menu name="Select" open={open === "select"} onOpen={() => setOpen("select")}>
+        <Item label="All" shortcut="⌘A" onClick={closeAndDo(p.api.selectAllDoc)} />
+        <Item label="Deselect" shortcut="⌘D" onClick={closeAndDo(p.api.deselectAll)} />
+        <Item label="Reselect" shortcut="⌘⇧D" onClick={closeAndDo(p.api.reselect)} />
+        <Item label="Inverse" shortcut="⌘⇧I" onClick={closeAndDo(p.api.invertSelection)} />
+        <Sep />
+        <Item
+          label="Select Layer Bounds"
+          onClick={closeAndDo(p.api.selectLayerAlpha)}
+          disabled={!p.api.selectedLayer}
+        />
+        <Sep />
+        <Item
+          label="Modify › Expand…"
+          onClick={closeAndDo(() => {
+            const px = parseFloat(prompt("Expand by (px)", "4") || "0");
+            if (px > 0) p.api.expandSel(px);
+          })}
+        />
+        <Item
+          label="Modify › Contract…"
+          onClick={closeAndDo(() => {
+            const px = parseFloat(prompt("Contract by (px)", "4") || "0");
+            if (px > 0) p.api.contractSel(px);
+          })}
+        />
+        <Item
+          label="Modify › Feather…"
+          onClick={closeAndDo(() => {
+            const px = parseFloat(prompt("Feather radius (px)", "4") || "0");
+            if (px > 0) p.api.featherSel(px);
+          })}
         />
       </Menu>
 
