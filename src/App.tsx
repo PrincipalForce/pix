@@ -120,6 +120,29 @@ export default function App() {
           api.invertSelection();
           return;
         }
+        if (e.key.toLowerCase() === "c" && !e.shiftKey && !e.altKey) {
+          // Only hijack when we have an active selection — otherwise let the
+          // browser handle normal text-copy.
+          if (api.selection.mask) {
+            e.preventDefault();
+            api.copySelection();
+            return;
+          }
+        }
+        if (e.key.toLowerCase() === "x" && !e.shiftKey && !e.altKey) {
+          if (api.selection.mask) {
+            e.preventDefault();
+            api.cutSelection();
+            return;
+          }
+        }
+        if (e.key.toLowerCase() === "v" && !e.shiftKey && !e.altKey) {
+          if (api.hasClipboard) {
+            e.preventDefault();
+            api.pasteSelection();
+            return;
+          }
+        }
         if (e.key.toLowerCase() === "e" && e.shiftKey) {
           e.preventDefault();
           setShowExport(true);

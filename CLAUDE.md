@@ -74,3 +74,23 @@ Add the case to `exportDocument` in `src/lib/export.ts`, declare it in `FORMATS`
 - `bump()` is required after any in-place canvas mutation; forgetting it leaves the UI stale until another state change triggers a re-render.
 - `pushHistory` snapshots the *current* `doc` state, so when called immediately after `setDoc`, wrap it in `setTimeout(_, 0)` (or call it in an effect) to capture the post-update snapshot.
 - Layer transform width/height can differ from `layer.canvas.width/height`; the renderer and brush both scale accordingly.
+- AI features (panel + tools) read provider API keys from `import.meta.env.VITE_*` at build/dev time. Missing keys disable the AI panel rather than throwing; `UI/AISettingsDialog.tsx` lets the user override at runtime (stored in `localStorage`, never committed).
+- When applying composite operations like `source-in` to the viewport ctx, remember it's already had the document composite drawn into it — masked fills will clobber the rendered doc. Composite in a scratch canvas first, then `drawImage` onto the viewport.
+
+## More modules / components (added after the initial pass)
+
+- `src/lib/fonts.ts` — font registration + custom-font import/rehydration used by the text tool and `UI/FontPicker.tsx`.
+- `src/lib/actions/` (`atn.ts`, `types.ts`) — recordable/replayable action sequences. The `useEditor` hook exposes `isRecording`, `startRecording`, `stopRecording`, `recordStep`; many mutator methods call `recordStep` so playback can reapply them.
+- `src/lib/ai/` (`agent.ts`, `tools.ts`) — agentic editing surface; the agent invokes editor mutators as tool calls.
+- `Editor/AIPanel.tsx` + `UI/AISettingsDialog.tsx` — UI for the AI agent and provider/key configuration.
+- `Editor/ActionsPanel.tsx` — record / save / replay action sequences.
+- `UI/CollapsibleSection.tsx` — wraps each right-rail panel (AI / Properties / Layers / Filters / Actions / History) so each section collapses independently; collapsed state persists per `id`.
+
+## Tools added since the initial doc
+
+- **Gradient** (`Tool = "gradient"`, Shift+G toggles fill ↔ gradient): pointer-down records a start point, pointer-up calls `drawGradient` from `lib/brush.ts` with `api.gradient.kind` (`linear` etc.) and `api.foreground`/`api.background` (swapped if `gradient.reverse`). Only paints on raster layers; respects selection mask + `maskTargetActive` the same way as brush.
+- **Custom brushes**: brush presets selected via `UI/BrushPicker.tsx`; `BrushSettings.presetId` flows into `lib/brush.ts:paintSegment`.
+
+## Copy / Cut / Paste
+
+Selection clipboard lives on a ref inside `useEditor` (not in React state — pasting shouldn't trigger re-renders by itself, and the data is a live canvas). `copySelection` / `cutSelection` extract the selected layer's pixels intersected with the selection mask, cropped to the mask's bounds; `pasteSelection` adds a new raster layer placed at the clipboard's original doc-space `x,y`. Cut additionally clears the source pixels via `destination-out` of the selection mask transformed into layer-local coords. Shortcuts: Ctrl/Cmd+C/X/V wired in `App.tsx`; menu items live under Edit in `MenuBar.tsx`.

@@ -65,6 +65,11 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     from: { x: number; y: number };
     to: { x: number; y: number };
   } | null>(null);
+  const [marqueePreview, setMarqueePreview] = useState<{
+    shape: "rect" | "ellipse";
+    startDoc: { x: number; y: number };
+    currentDoc: { x: number; y: number };
+  } | null>(null);
   const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>([]);
   const [antsOffset, setAntsOffset] = useState(0);
   const rafRef = useRef<number | null>(null);
@@ -117,9 +122,14 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   const touchPointerCount = () =>
     [...pointersRef.current.values()].filter((p) => p.type === "touch").length;
 
-  // Marching ants animation loop
+  // Marching ants animation loop — runs as long as there is a selection, or while
+  // a marquee/lasso drag is in progress. Depending on `selection.mask` directly
+  // would restart the RAF on every pointer move during a drag (which both kills
+  // perf and produces visual trails). We track only "is there *some* outline?"
+  // and let the offset tick freely while it stays true.
+  const hasAnyOutline = !!api.selection.mask || polyPoints.length > 0 || !!marqueePreview;
   useEffect(() => {
-    if (!api.selection.mask) return;
+    if (!hasAnyOutline) return;
     let raf = 0;
     const tick = () => {
       setAntsOffset((o) => (o + 1) % 8);
@@ -127,7 +137,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [api.selection.mask]);
+  }, [hasAnyOutline]);
 
   // Re-render on state change
   useEffect(() => {
@@ -148,11 +158,12 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       ctx.scale(api.view.zoom, api.view.zoom);
       drawSelectionAnts(ctx, api.selection, api.view.zoom, antsOffset);
       drawPolyInProgress(ctx, polyPoints, api.view.zoom, antsOffset);
+      if (marqueePreview) drawMarqueePreview(ctx, marqueePreview, api.view.zoom, antsOffset);
       if (gradPreview) drawGradientPreview(ctx, gradPreview, api.view.zoom);
       drawSelectedLayerOverlay(ctx, api);
       ctx.restore();
     });
-  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints, gradPreview]);
+  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints, gradPreview, marqueePreview]);
 
   // Keep external composite output current for share/export
   useEffect(() => {
@@ -271,12 +282,15 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     }
 
     if (api.tool === "marquee-rect" || api.tool === "marquee-ellipse") {
+      const shape = api.tool === "marquee-rect" ? "rect" : "ellipse";
       dragRef.current = {
         kind: "marquee",
-        shape: api.tool === "marquee-rect" ? "rect" : "ellipse",
+        shape,
         startDoc: docPt,
         currentDoc: docPt,
       };
+      // Start with a zero-size preview; the real selection mask is only built on pointer up.
+      setMarqueePreview({ shape, startDoc: docPt, currentDoc: docPt });
       return;
     }
 
@@ -448,16 +462,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
 
     if (drag.kind === "marquee") {
       drag.currentDoc = docPt;
-      // Live-preview by setting selection
-      const x = Math.min(drag.startDoc.x, docPt.x);
-      const y = Math.min(drag.startDoc.y, docPt.y);
-      const w = Math.abs(docPt.x - drag.startDoc.x);
-      const h = Math.abs(docPt.y - drag.startDoc.y);
-      api.setSelection(
-        drag.shape === "rect"
-          ? rectSelection(api.doc.width, api.doc.height, x, y, w, h)
-          : ellipseSelection(api.doc.width, api.doc.height, x, y, w, h)
-      );
+      // Cheap preview only — no per-move mask allocation.
+      setMarqueePreview({ shape: drag.shape, startDoc: drag.startDoc, currentDoc: docPt });
       return;
     }
 
@@ -485,7 +491,23 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     } else if (drag.kind === "move-layer") {
       api.pushHistory("Move Layer");
     } else if (drag.kind === "marquee") {
-      // already committed in onPointerMove
+      // Commit the real selection mask once on release.
+      const a = drag.startDoc;
+      const b = drag.currentDoc;
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(b.x - a.x);
+      const h = Math.abs(b.y - a.y);
+      if (w > 1 && h > 1) {
+        api.setSelection(
+          drag.shape === "rect"
+            ? rectSelection(api.doc.width, api.doc.height, x, y, w, h)
+            : ellipseSelection(api.doc.width, api.doc.height, x, y, w, h)
+        );
+      } else {
+        api.setSelection({ mask: null, bounds: null });
+      }
+      setMarqueePreview(null);
     } else if (drag.kind === "gradient") {
       const sel = api.selectedLayer;
       if (sel && !sel.locked && sel.kind === "raster") {
@@ -600,6 +622,45 @@ function topmostLayerAt(api: EditorAPI, x: number, y: number) {
     }
   }
   return null;
+}
+
+function drawMarqueePreview(
+  ctx: CanvasRenderingContext2D,
+  m: {
+    shape: "rect" | "ellipse";
+    startDoc: { x: number; y: number };
+    currentDoc: { x: number; y: number };
+  },
+  zoom: number,
+  dashOffset: number
+) {
+  const x = Math.min(m.startDoc.x, m.currentDoc.x);
+  const y = Math.min(m.startDoc.y, m.currentDoc.y);
+  const w = Math.abs(m.currentDoc.x - m.startDoc.x);
+  const h = Math.abs(m.currentDoc.y - m.startDoc.y);
+  if (w < 1 || h < 1) return;
+  ctx.save();
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.setLineDash([5 / zoom, 5 / zoom]);
+  ctx.lineDashOffset = -dashOffset / zoom;
+  ctx.strokeStyle = "#000";
+  if (m.shape === "rect") {
+    ctx.strokeRect(x, y, w, h);
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.lineDashOffset = -dashOffset / zoom + 5 / zoom;
+  ctx.strokeStyle = "#fff";
+  if (m.shape === "rect") {
+    ctx.strokeRect(x, y, w, h);
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawGradientPreview(

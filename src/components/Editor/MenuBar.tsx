@@ -68,6 +68,25 @@ export default function MenuBar(p: Props) {
           onClick={closeAndDo(p.api.redo)}
           disabled={p.api.historyIndex >= p.api.history.length - 1}
         />
+        <Sep />
+        <Item
+          label="Cut"
+          shortcut="⌘X"
+          onClick={closeAndDo(p.api.cutSelection)}
+          disabled={!p.api.selection.mask || !p.api.selectedLayer || p.api.selectedLayer.locked || p.api.selectedLayer.kind !== "raster"}
+        />
+        <Item
+          label="Copy"
+          shortcut="⌘C"
+          onClick={closeAndDo(p.api.copySelection)}
+          disabled={!p.api.selection.mask || !p.api.selectedLayer || p.api.selectedLayer.kind !== "raster"}
+        />
+        <Item
+          label="Paste"
+          shortcut="⌘V"
+          onClick={closeAndDo(p.api.pasteSelection)}
+          disabled={!p.api.hasClipboard}
+        />
       </Menu>
 
       <Menu name="Image" open={open === "image"} onOpen={() => setOpen("image")}>

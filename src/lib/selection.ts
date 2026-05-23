@@ -200,18 +200,22 @@ export function drawSelectionAnts(
     ctx.strokeStyle = "#fff";
     ctx.stroke(selection.path);
   } else if (selection.outline) {
-    // Magic-wand: outline canvas is already 1px white edges. Draw black
-    // underlay then white over the top.
-    ctx.imageSmoothingEnabled = false;
-    ctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(selection.outline, 0, 0);
-    // Dashed effect: overlay a horizontal/vertical stripe pattern.
-    const stripe = stripePattern(ctx, dashOffset);
+    // Magic-wand: outline canvas is already 1px white edges. Composite the
+    // marching-ants stripe pattern in a scratch canvas first — using `source-in`
+    // directly on the main ctx would wipe out the document composite that was
+    // already rendered into the viewport.
+    const tmp = createCanvas(selection.outline.width, selection.outline.height);
+    const tctx = ctx2d(tmp);
+    tctx.imageSmoothingEnabled = false;
+    tctx.drawImage(selection.outline, 0, 0);
+    const stripe = stripePattern(tctx, dashOffset);
     if (stripe) {
-      ctx.globalCompositeOperation = "source-in";
-      ctx.fillStyle = stripe;
-      ctx.fillRect(0, 0, selection.outline.width, selection.outline.height);
+      tctx.globalCompositeOperation = "source-in";
+      tctx.fillStyle = stripe;
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
     }
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(tmp, 0, 0);
   } else if (selection.bounds) {
     // Last resort: bounds rectangle.
     const b = selection.bounds;
@@ -349,6 +353,62 @@ function maskBounds(c: HTMLCanvasElement): Selection["bounds"] {
   }
   if (maxX < 0) return null;
   return { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 };
+}
+
+// --- Clipboard extraction --------------------------------------------------
+
+// Render a layer's pixels into a doc-sized canvas at its transform.
+function rasterizeLayerToDoc(layer: Layer, docW: number, docH: number): HTMLCanvasElement {
+  const out = createCanvas(docW, docH);
+  const ctx = ctx2d(out);
+  ctx.save();
+  ctx.translate(layer.x + layer.width / 2, layer.y + layer.height / 2);
+  ctx.rotate(layer.rotation);
+  ctx.drawImage(layer.canvas, -layer.width / 2, -layer.height / 2, layer.width, layer.height);
+  ctx.restore();
+  return out;
+}
+
+// Extract the layer's pixels within `selection`, cropped to the selection bounds.
+// Returns the cropped pixel canvas plus the doc-space origin (x,y) where it came from.
+// Returns null if the selection has no mask, no bounds, or is empty.
+export function extractSelectionFromLayer(
+  layer: Layer,
+  selection: Selection,
+  docW: number,
+  docH: number
+): { canvas: HTMLCanvasElement; x: number; y: number } | null {
+  if (!selection.mask || !selection.bounds) return null;
+  const b = selection.bounds;
+  if (b.width <= 0 || b.height <= 0) return null;
+  // Render the layer at doc-space, then mask to the selection.
+  const docSized = rasterizeLayerToDoc(layer, docW, docH);
+  const mctx = ctx2d(docSized);
+  mctx.globalCompositeOperation = "destination-in";
+  mctx.drawImage(selection.mask, 0, 0);
+  mctx.globalCompositeOperation = "source-over";
+  // Crop to selection bounds.
+  const out = createCanvas(b.width, b.height);
+  ctx2d(out).drawImage(docSized, b.x, b.y, b.width, b.height, 0, 0, b.width, b.height);
+  return { canvas: out, x: b.x, y: b.y };
+}
+
+// Erase the selection's pixels from a layer's canvas (used by Cut).
+export function eraseSelectionFromLayer(layer: Layer, selection: Selection): void {
+  if (!selection.mask) return;
+  const ctx = ctx2d(layer.canvas);
+  ctx.save();
+  // Map the doc-space mask into the layer's local pixel coordinates:
+  //   doc → centered/rotated → translated to layer-canvas origin, then scaled to canvas pixels.
+  const sx = layer.canvas.width / layer.width;
+  const sy = layer.canvas.height / layer.height;
+  ctx.scale(sx, sy);
+  ctx.translate(layer.width / 2, layer.height / 2);
+  ctx.rotate(-layer.rotation);
+  ctx.translate(-(layer.x + layer.width / 2), -(layer.y + layer.height / 2));
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.drawImage(selection.mask, 0, 0);
+  ctx.restore();
 }
 
 let stripeCache: { offset: number; pattern: CanvasPattern } | null = null;

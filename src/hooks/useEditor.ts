@@ -31,6 +31,8 @@ import {
   featherSelection,
   expandSelection,
   contractSelection,
+  extractSelectionFromLayer,
+  eraseSelectionFromLayer,
 } from "@/lib/selection";
 import { fitViewport } from "@/lib/render";
 import { Step } from "@/lib/actions/types";
@@ -387,6 +389,53 @@ export function useEditor() {
     setSelection(contractSelection(selection, px, doc.width, doc.height));
   }, [selection, doc.width, doc.height, setSelection]);
 
+  // --- Clipboard (copy/cut/paste of selection pixels) ---
+  // Stored on a ref: pasting shouldn't trigger re-renders on its own, and the
+  // payload is a live canvas (not snapshot-friendly).
+  const clipboardRef = useRef<{ canvas: HTMLCanvasElement; x: number; y: number } | null>(null);
+  const [hasClipboard, setHasClipboard] = useState(false);
+
+  const copySelection = useCallback(() => {
+    if (!selectedLayer || selectedLayer.kind !== "raster" || !selection.mask) return;
+    const clip = extractSelectionFromLayer(selectedLayer, selection, doc.width, doc.height);
+    if (!clip) return;
+    clipboardRef.current = clip;
+    setHasClipboard(true);
+  }, [selectedLayer, selection, doc.width, doc.height]);
+
+  const cutSelection = useCallback(() => {
+    if (!selectedLayer || selectedLayer.locked || selectedLayer.kind !== "raster" || !selection.mask) return;
+    const clip = extractSelectionFromLayer(selectedLayer, selection, doc.width, doc.height);
+    if (!clip) return;
+    clipboardRef.current = clip;
+    setHasClipboard(true);
+    eraseSelectionFromLayer(selectedLayer, selection);
+    bump();
+    setTimeout(() => pushHistory("Cut"), 0);
+  }, [selectedLayer, selection, doc.width, doc.height, bump, pushHistory]);
+
+  const pasteSelection = useCallback(() => {
+    const clip = clipboardRef.current;
+    if (!clip) return;
+    const layer = createRasterLayer({
+      name: "Pasted",
+      width: clip.canvas.width,
+      height: clip.canvas.height,
+      docWidth: doc.width,
+      docHeight: doc.height,
+      x: clip.x,
+      y: clip.y,
+    });
+    // Draw the clipboard pixels at 1:1 into the new layer.
+    layer.canvas.getContext("2d")!.drawImage(clip.canvas, 0, 0);
+    setDoc((d) => ({
+      ...d,
+      layers: [...d.layers, layer],
+      selectedLayerId: layer.id,
+    }));
+    setTimeout(() => pushHistory("Paste"), 0);
+  }, [doc.width, doc.height, pushHistory]);
+
   // --- canvas/image size ---
 
   const applyCanvasSize = useCallback(
@@ -459,6 +508,11 @@ export function useEditor() {
     featherSel,
     expandSel,
     contractSel,
+    // Clipboard
+    copySelection,
+    cutSelection,
+    pasteSelection,
+    hasClipboard,
     // History
     undo,
     redo,
