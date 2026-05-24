@@ -82,12 +82,15 @@ export function compositeDocument(
 // `logicalWidth`/`logicalHeight` are in CSS pixels (i.e. the area the caller has set
 // up as the drawing region). The caller should apply any DPR transform on `target`
 // before calling.
+export type TransparencyTheme = "light" | "dark";
+
 export function renderViewport(
   doc: DocumentState,
   view: Viewport,
   target: HTMLCanvasElement,
   logicalWidth?: number,
-  logicalHeight?: number
+  logicalHeight?: number,
+  transparencyTheme: TransparencyTheme = "light"
 ): void {
   const ctx = ctx2d(target);
   const lw = logicalWidth ?? target.width;
@@ -110,7 +113,7 @@ export function renderViewport(
   ctx.shadowOffsetY = 0;
 
   // Checkerboard for transparent areas of the doc
-  drawCheckerboard(ctx, doc.width, doc.height, 12);
+  drawCheckerboard(ctx, doc.width, doc.height, 12, transparencyTheme);
 
   // The composited doc
   const composite = compositeDocument(doc, undefined, { includeBackground: true });
@@ -129,11 +132,16 @@ function drawCheckerboard(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  cell: number
+  cell: number,
+  theme: TransparencyTheme = "light"
 ): void {
-  ctx.fillStyle = "#ffffff";
+  // Two-tone tiles that read as "transparency" at a glance. Dark theme keeps
+  // the same contrast ratio as the light one — just shifted into the editor's
+  // greys so it blends with a dark UI.
+  const [base, alt] = theme === "dark" ? ["#3a3f4a", "#2b2f38"] : ["#ffffff", "#cfcfcf"];
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#cfcfcf";
+  ctx.fillStyle = alt;
   for (let y = 0; y < h; y += cell) {
     for (let x = 0; x < w; x += cell) {
       if (((x / cell + y / cell) | 0) % 2 === 0) ctx.fillRect(x, y, cell, cell);

@@ -13,6 +13,7 @@ import {
 import {
   createBlankDocument,
   createRasterLayer,
+  cropDocument,
   duplicateLayer,
   ensureMask,
   nextLayerId,
@@ -34,7 +35,7 @@ import {
   extractSelectionFromLayer,
   eraseSelectionFromLayer,
 } from "@/lib/selection";
-import { fitViewport } from "@/lib/render";
+import { fitViewport, TransparencyTheme } from "@/lib/render";
 import { Step } from "@/lib/actions/types";
 
 const HISTORY_LIMIT = 60;
@@ -79,6 +80,17 @@ export function useEditor() {
   const [foreground, setForeground] = useState("#111827");
   const [background, setBackgroundColor] = useState("#ffffff");
   const [gradient, setGradient] = useState<GradientSettings>({ kind: "linear", reverse: false });
+  const [transparencyTheme, setTransparencyThemeRaw] = useState<TransparencyTheme>(() => {
+    if (typeof window === "undefined") return "light";
+    const stored = window.localStorage.getItem("pix.transparencyTheme");
+    return stored === "dark" ? "dark" : "light";
+  });
+  const setTransparencyTheme = useCallback((t: TransparencyTheme) => {
+    setTransparencyThemeRaw(t);
+    try {
+      window.localStorage.setItem("pix.transparencyTheme", t);
+    } catch {}
+  }, []);
 
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -447,6 +459,17 @@ export function useEditor() {
     [pushHistory, recordStep]
   );
 
+  const applyCrop = useCallback(
+    (x: number, y: number, w: number, h: number) => {
+      if (w < 1 || h < 1) return;
+      recordStep({ type: "canvasSize", width: Math.round(w), height: Math.round(h), anchor: "tl" });
+      setDoc((d) => cropDocument(d, x, y, w, h));
+      setSelection(emptySelection());
+      setTimeout(() => pushHistory("Crop"), 0);
+    },
+    [pushHistory, recordStep, setSelection]
+  );
+
   const applyImageSize = useCallback(
     (w: number, h: number) => {
       recordStep({ type: "imageSize", width: w, height: h });
@@ -474,6 +497,8 @@ export function useEditor() {
     setBackgroundColor,
     gradient,
     setGradient,
+    transparencyTheme,
+    setTransparencyTheme,
     selectedLayer,
     history,
     historyIndex,
@@ -499,6 +524,7 @@ export function useEditor() {
     // Size
     applyCanvasSize,
     applyImageSize,
+    applyCrop,
     // Selection ops
     selectAllDoc,
     deselectAll,

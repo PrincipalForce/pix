@@ -51,6 +51,11 @@ type Drag =
       kind: "gradient";
       startDoc: { x: number; y: number };
       currentDoc: { x: number; y: number };
+    }
+  | {
+      kind: "crop";
+      startDoc: { x: number; y: number };
+      currentDoc: { x: number; y: number };
     };
 
 type TransformHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rot";
@@ -64,6 +69,10 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   const [gradPreview, setGradPreview] = useState<{
     from: { x: number; y: number };
     to: { x: number; y: number };
+  } | null>(null);
+  const [cropPreview, setCropPreview] = useState<{
+    startDoc: { x: number; y: number };
+    currentDoc: { x: number; y: number };
   } | null>(null);
   const [marqueePreview, setMarqueePreview] = useState<{
     shape: "rect" | "ellipse";
@@ -152,7 +161,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       const cssH = canvas.height / dpr;
       ctx.save();
       ctx.clearRect(0, 0, cssW, cssH);
-      renderViewport(api.doc, api.view, canvas, cssW, cssH);
+      renderViewport(api.doc, api.view, canvas, cssW, cssH, api.transparencyTheme);
       // overlay marching ants and transform handles, in viewport coords
       ctx.translate(api.view.panX, api.view.panY);
       ctx.scale(api.view.zoom, api.view.zoom);
@@ -160,10 +169,11 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       drawPolyInProgress(ctx, polyPoints, api.view.zoom, antsOffset);
       if (marqueePreview) drawMarqueePreview(ctx, marqueePreview, api.view.zoom, antsOffset);
       if (gradPreview) drawGradientPreview(ctx, gradPreview, api.view.zoom);
+      if (cropPreview) drawCropPreview(ctx, cropPreview, api.doc.width, api.doc.height, api.view.zoom);
       drawSelectedLayerOverlay(ctx, api);
       ctx.restore();
     });
-  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints, gradPreview, marqueePreview]);
+  }, [api.doc, api.view, api.selection, api.dirtyTick, antsOffset, polyPoints, gradPreview, marqueePreview, cropPreview, api.transparencyTheme]);
 
   // Keep external composite output current for share/export
   useEffect(() => {
@@ -347,6 +357,12 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (api.tool === "crop") {
+      dragRef.current = { kind: "crop", startDoc: docPt, currentDoc: docPt };
+      setCropPreview({ startDoc: docPt, currentDoc: docPt });
+      return;
+    }
+
     if (api.tool === "fill") {
       const sel = api.selectedLayer;
       if (!sel) {
@@ -473,6 +489,12 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (drag.kind === "crop") {
+      drag.currentDoc = docPt;
+      setCropPreview({ startDoc: drag.startDoc, currentDoc: docPt });
+      return;
+    }
+
     if (drag.kind === "transform") {
       const layer = api.doc.layers.find((l) => l.id === drag.layerId);
       if (!layer) return;
@@ -527,6 +549,18 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         api.pushHistory(`Gradient (${api.gradient.kind})`);
       }
       setGradPreview(null);
+    } else if (drag.kind === "crop") {
+      // Leave the rectangle on screen as a pending crop. The user commits with
+      // Enter or double-click inside, or cancels with Escape. A new drag
+      // simply replaces the pending rect (handled by setCropPreview in
+      // pointer-down/move). Zero-area drag = clear (treat as a click-cancel).
+      const a = drag.startDoc;
+      const b = drag.currentDoc;
+      const w = Math.abs(b.x - a.x);
+      const h = Math.abs(b.y - a.y);
+      if (w < 2 || h < 2) {
+        setCropPreview(null);
+      }
     } else if (drag.kind === "transform") {
       api.pushHistory("Transform");
     }
@@ -560,6 +594,43 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     }
   };
 
+  // Commit / cancel for a pending crop rectangle.
+  const commitCrop = useCallback(() => {
+    const c = cropPreview;
+    if (!c) return;
+    const x0 = Math.max(0, Math.min(api.doc.width, Math.min(c.startDoc.x, c.currentDoc.x)));
+    const y0 = Math.max(0, Math.min(api.doc.height, Math.min(c.startDoc.y, c.currentDoc.y)));
+    const x1 = Math.max(0, Math.min(api.doc.width, Math.max(c.startDoc.x, c.currentDoc.x)));
+    const y1 = Math.max(0, Math.min(api.doc.height, Math.max(c.startDoc.y, c.currentDoc.y)));
+    const w = x1 - x0;
+    const h = y1 - y0;
+    if (w > 1 && h > 1) api.applyCrop(x0, y0, w, h);
+    setCropPreview(null);
+  }, [cropPreview, api]);
+
+  // Enter to commit, Escape to cancel the pending crop. Skip when typing in inputs.
+  useEffect(() => {
+    if (!cropPreview) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commitCrop();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setCropPreview(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cropPreview, commitCrop]);
+
+  // Clear any pending crop when the user switches off the crop tool.
+  useEffect(() => {
+    if (api.tool !== "crop" && cropPreview) setCropPreview(null);
+  }, [api.tool, cropPreview]);
+
   // Track the most recently hovered point so we can show direction-aware resize cursors.
   const [hoverHandle, setHoverHandle] = useState<TransformHandle | null>(null);
   const onPointerHover = (e: React.PointerEvent) => {
@@ -587,10 +658,21 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onWheel={onWheel}
-        onDoubleClick={() => {
+        onDoubleClick={(e) => {
           if (api.tool === "lasso-polygon" && polyPoints.length >= 3) {
             api.setSelection(polygonSelection(api.doc.width, api.doc.height, polyPoints));
             setPolyPoints([]);
+            return;
+          }
+          if (api.tool === "crop" && cropPreview) {
+            // Only commit if the double-click lands inside the pending rect.
+            const rect = canvasRef.current!.getBoundingClientRect();
+            const p = viewportToDoc(e.clientX - rect.left, e.clientY - rect.top, api.view);
+            const x0 = Math.min(cropPreview.startDoc.x, cropPreview.currentDoc.x);
+            const y0 = Math.min(cropPreview.startDoc.y, cropPreview.currentDoc.y);
+            const x1 = Math.max(cropPreview.startDoc.x, cropPreview.currentDoc.x);
+            const y1 = Math.max(cropPreview.startDoc.y, cropPreview.currentDoc.y);
+            if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) commitCrop();
           }
         }}
         onContextMenu={(e) => e.preventDefault()}
@@ -685,6 +767,45 @@ function drawGradientPreview(
   ctx.beginPath();
   ctx.arc(g.to.x, g.to.y, 4 / zoom, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawCropPreview(
+  ctx: CanvasRenderingContext2D,
+  c: { startDoc: { x: number; y: number }; currentDoc: { x: number; y: number } },
+  docW: number,
+  docH: number,
+  zoom: number
+) {
+  const x0 = Math.min(c.startDoc.x, c.currentDoc.x);
+  const y0 = Math.min(c.startDoc.y, c.currentDoc.y);
+  const w = Math.abs(c.currentDoc.x - c.startDoc.x);
+  const h = Math.abs(c.currentDoc.y - c.startDoc.y);
+  if (w < 1 || h < 1) return;
+  ctx.save();
+  // Darken everything outside the crop rect via an even-odd path covering
+  // the whole doc with a rect-hole at the crop region.
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.rect(0, 0, docW, docH);
+  ctx.rect(x0, y0, w, h);
+  ctx.fill("evenodd");
+  // Crop rect outline + rule-of-thirds guides.
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.strokeStyle = "#fff";
+  ctx.strokeRect(x0, y0, w, h);
+  ctx.lineWidth = 1 / zoom;
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.beginPath();
+  ctx.moveTo(x0 + w / 3, y0);
+  ctx.lineTo(x0 + w / 3, y0 + h);
+  ctx.moveTo(x0 + (2 * w) / 3, y0);
+  ctx.lineTo(x0 + (2 * w) / 3, y0 + h);
+  ctx.moveTo(x0, y0 + h / 3);
+  ctx.lineTo(x0 + w, y0 + h / 3);
+  ctx.moveTo(x0, y0 + (2 * h) / 3);
+  ctx.lineTo(x0 + w, y0 + (2 * h) / 3);
+  ctx.stroke();
   ctx.restore();
 }
 

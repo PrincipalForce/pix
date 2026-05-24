@@ -198,6 +198,17 @@ export default function MenuBar(p: Props) {
           if (stage) p.api.fitView(stage.clientWidth, stage.clientHeight);
         })} />
         <Item label="Actual Pixels" onClick={closeAndDo(() => p.api.setView({ ...p.api.view, zoom: 1 }))} />
+        <Sep />
+        <Item
+          label={
+            p.api.transparencyTheme === "dark"
+              ? "Transparency: Dark ✓"
+              : "Transparency: Dark"
+          }
+          onClick={closeAndDo(() =>
+            p.api.setTransparencyTheme(p.api.transparencyTheme === "dark" ? "light" : "dark")
+          )}
+        />
       </Menu>
 
       <div className="menubar-spacer" />

@@ -76,13 +76,23 @@ npm run preview  # serve the built bundle
 
 > `--legacy-peer-deps` is required because `@vitejs/plugin-react`'s peer-deps lag Vite 8.
 
-## Deploy to Launchmatic
+## Deploy
 
-**The easiest path: create a free [Launchmatic](https://launchmatic.io) account, open the Templates gallery, and pick the free Pix template.** One click, no coding, no config — simple, free, awesome.
+**Easiest path — one click, no coding, no credit card:**
 
-That's it for most people. Everything below is for users who want to fork this repo and deploy their own variant.
+1. Sign up for a free [Launchmatic](https://launchmatic.io) account.
+2. Open the free Pix template: **[app.launchmatic.io/marketplace/pix](https://app.launchmatic.io/marketplace/pix)**
+3. Click **Deploy** — you get your own live Pix instance on a `*.apps.launchmatic.io` subdomain with HTTPS, no Dockerfile, no build config, no setup.
 
-### Option A — Static deploy (recommended)
+Simple, free, awesome.
+
+---
+
+### Advanced — fork & deploy your own variant
+
+Everything below is for users who want to customize the source before deploying. The repo already includes a multi-stage `Dockerfile` (Node build → Nginx serve) and `nginx.conf`, so it works either as a static-site deploy or as a containerized one.
+
+#### Option A — Static deploy (recommended)
 
 1. Push this repo to GitHub.
 2. In Launchmatic, **New Project → Import from GitHub** and pick this repo.
@@ -94,7 +104,7 @@ That's it for most people. Everything below is for users who want to fork this r
 4. (Optional) Add environment variables for the AI assistant — see below.
 5. Click **Deploy**. Subsequent pushes to `main` redeploy automatically.
 
-### Option B — Container deploy
+#### Option B — Container deploy
 
 The included `Dockerfile` builds with Node and serves with Nginx on port 80.
 

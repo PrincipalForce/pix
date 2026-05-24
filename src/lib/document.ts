@@ -195,6 +195,25 @@ export function ensureMask(layer: Layer): HTMLCanvasElement {
 
 // --- Resize ops -------------------------------------------------------------
 
+// Crop the document to the given doc-space rectangle. Doc dimensions become w×h
+// and every layer is shifted by (-x,-y) so its position relative to the new
+// origin is preserved. Layer canvases are untouched — pixels outside the new
+// doc bounds simply aren't composited.
+export function cropDocument(
+  doc: DocumentState,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): DocumentState {
+  return {
+    ...doc,
+    width: Math.max(1, Math.round(w)),
+    height: Math.max(1, Math.round(h)),
+    layers: doc.layers.map((l) => ({ ...l, x: Math.round(l.x - x), y: Math.round(l.y - y) })),
+  };
+}
+
 export function resizeCanvasSize(
   doc: DocumentState,
   newWidth: number,
