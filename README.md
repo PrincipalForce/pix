@@ -78,7 +78,9 @@ npm run preview  # serve the built bundle
 
 ## Deploy to Launchmatic
 
-[Launchmatic](https://launchmatic.io) deploys any Vite/React static site straight from GitHub. The repo already includes a multi-stage `Dockerfile` (Node build → Nginx serve) and `nginx.conf`, so it works either as a static-site deploy or as a containerized one.
+**The easiest path: create a free [Launchmatic](https://launchmatic.io) account, open the Templates gallery, and pick the free Pix template.** One click, no coding, no config — simple, free, awesome.
+
+That's it for most people. Everything below is for users who want to fork this repo and deploy their own variant.
 
 ### Option A — Static deploy (recommended)
 
