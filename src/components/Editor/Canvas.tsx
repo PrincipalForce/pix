@@ -648,8 +648,14 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     cursor = resizeCursorFor(hoverHandle, api.selectedLayer.rotation);
   }
 
+  const finishPolygon = useCallback(() => {
+    if (polyPoints.length < 3) return;
+    api.setSelection(polygonSelection(api.doc.width, api.doc.height, polyPoints));
+    setPolyPoints([]);
+  }, [api, polyPoints]);
+
   return (
-    <div ref={wrapRef} className="canvas-stage" style={{ cursor, touchAction: "none" }}>
+    <div ref={wrapRef} className="canvas-stage" style={{ cursor, touchAction: "none", position: "relative" }}>
       <canvas
         ref={canvasRef}
         style={{ touchAction: "none" }}
@@ -660,8 +666,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         onWheel={onWheel}
         onDoubleClick={(e) => {
           if (api.tool === "lasso-polygon" && polyPoints.length >= 3) {
-            api.setSelection(polygonSelection(api.doc.width, api.doc.height, polyPoints));
-            setPolyPoints([]);
+            finishPolygon();
             return;
           }
           if (api.tool === "crop" && cropPreview) {
@@ -677,6 +682,119 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         }}
         onContextMenu={(e) => e.preventDefault()}
       />
+      {cropPreview && (
+        <FloatingActionBar
+          anchorDoc={{
+            x: Math.max(cropPreview.startDoc.x, cropPreview.currentDoc.x),
+            y: Math.max(cropPreview.startDoc.y, cropPreview.currentDoc.y),
+          }}
+          view={api.view}
+          containerRef={wrapRef}
+          actions={[
+            { label: "Cancel", onClick: () => setCropPreview(null), variant: "ghost" },
+            { label: "Apply Crop", onClick: commitCrop, variant: "primary" },
+          ]}
+        />
+      )}
+      {api.tool === "lasso-polygon" && polyPoints.length >= 3 && (
+        <FloatingActionBar
+          anchorDoc={polyPoints[polyPoints.length - 1]}
+          view={api.view}
+          containerRef={wrapRef}
+          actions={[
+            { label: "Cancel", onClick: () => setPolyPoints([]), variant: "ghost" },
+            { label: "Finish Selection", onClick: finishPolygon, variant: "primary" },
+          ]}
+        />
+      )}
+    </div>
+  );
+}
+
+type FloatingAction = { label: string; onClick: () => void; variant: "primary" | "ghost" };
+function FloatingActionBar({
+  anchorDoc,
+  view,
+  containerRef,
+  actions,
+}: {
+  anchorDoc: { x: number; y: number };
+  view: { zoom: number; panX: number; panY: number };
+  containerRef: React.RefObject<HTMLDivElement>;
+  actions: FloatingAction[];
+}) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
+
+  const desiredX = anchorDoc.x * view.zoom + view.panX;
+  const desiredY = anchorDoc.y * view.zoom + view.panY;
+
+  useEffect(() => {
+    const bar = barRef.current;
+    const container = containerRef.current;
+    if (!bar || !container) return;
+    const barRect = bar.getBoundingClientRect();
+    const stageRect = container.getBoundingClientRect();
+    const w = barRect.width;
+    const h = barRect.height;
+    const margin = 8;
+    // Anchor: bottom-right corner of region, bar extends left and below.
+    let left = desiredX - w;
+    let top = desiredY + 10;
+    // If bar would clip below stage, flip above the anchor.
+    if (top + h > stageRect.height - margin) {
+      top = desiredY - h - 10;
+    }
+    // Clamp into the stage rect with margins.
+    left = Math.max(margin, Math.min(stageRect.width - w - margin, left));
+    top = Math.max(margin, Math.min(stageRect.height - h - margin, top));
+    setPos({ left, top });
+  }, [desiredX, desiredY, containerRef, actions.length]);
+
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <div
+      ref={barRef}
+      style={{
+        position: "absolute",
+        left: pos.left,
+        top: pos.top,
+        display: "flex",
+        gap: 6,
+        padding: 6,
+        background: "rgba(20,22,30,0.92)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 8,
+        boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
+        zIndex: 5,
+        pointerEvents: "auto",
+      }}
+      onPointerDown={stop}
+      onPointerUp={stop}
+      onMouseDown={stop}
+      onClick={stop}
+      onDoubleClick={stop}
+    >
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          onClick={a.onClick}
+          style={{
+            padding: "8px 14px",
+            minHeight: 36,
+            fontSize: 13,
+            fontWeight: 600,
+            border: "1px solid " + (a.variant === "primary" ? "#3b82f6" : "rgba(255,255,255,0.18)"),
+            background: a.variant === "primary" ? "#3b82f6" : "transparent",
+            color: a.variant === "primary" ? "#fff" : "rgba(255,255,255,0.85)",
+            borderRadius: 6,
+            cursor: "pointer",
+            touchAction: "manipulation",
+          }}
+        >
+          {a.label}
+        </button>
+      ))}
     </div>
   );
 }

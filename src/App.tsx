@@ -24,7 +24,7 @@ import ImageUpload from "./components/UI/ImageUpload";
 import { useEditor } from "./hooks/useEditor";
 import { Tool } from "./types/editor";
 import { createTextLayer, createShapeLayer, renderTextLayer } from "./lib/document";
-import { Menu, PanelRight, Layers as LayersIcon, X } from "lucide-react";
+import { Menu, PanelRight, Layers as LayersIcon, X, Trash2 } from "lucide-react";
 import { rehydrateCustomFonts } from "./lib/fonts";
 
 const SHORTCUTS: Record<string, Tool> = {
@@ -385,6 +385,17 @@ export default function App() {
         title="Layers / properties"
       >
         <LayersIcon size={20} />
+      </button>
+      <button
+        className="fab fab-trash"
+        onClick={() => {
+          if (api.selectedLayer) api.deleteLayer(api.selectedLayer.id);
+        }}
+        disabled={!api.selectedLayer}
+        title={api.selectedLayer ? `Delete "${api.selectedLayer.name}"` : "No layer selected"}
+        aria-label="Delete selected layer"
+      >
+        <Trash2 size={20} />
       </button>
 
       {/* hidden input used by File > Open */}

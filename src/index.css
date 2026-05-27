@@ -333,8 +333,15 @@ input, select, textarea {
 .layer-meta { min-width: 0; }
 .layer-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layer-sub { font-size: 10.5px; color: var(--text-mute); }
-.layer-lock { color: var(--text-mute); }
-.layer-row .layer-lock:hover { color: var(--text); }
+.layer-lock { color: var(--text-mute); opacity: 0.45; transition: opacity 0.12s, color 0.12s, background 0.12s; }
+.layer-row .layer-lock:hover { color: var(--text); opacity: 0.85; }
+.layer-lock.is-locked {
+  color: var(--accent-strong, #3b82f6);
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.18);
+  border-radius: 4px;
+}
+.layer-lock.is-locked:hover { color: var(--accent-strong, #3b82f6); opacity: 1; }
 
 .empty { padding: 28px 12px; color: var(--text-mute); text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .empty-actions { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; }
@@ -1048,8 +1055,10 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 6px 16px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06) inset;
 }
 .fab:active { transform: translateY(1px); }
+.fab[disabled] { opacity: 0.4; pointer-events: none; }
 .fab-tools { left: 12px; bottom: 14px; }
 .fab-panels { right: 12px; bottom: 14px; }
+.fab-trash { right: 70px; bottom: 14px; background: #dc2626; }
 
 .mobile-backdrop {
   display: none;

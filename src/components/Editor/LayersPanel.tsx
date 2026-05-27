@@ -3,7 +3,6 @@ import {
   Eye,
   EyeOff,
   Lock,
-  LockOpen,
   Plus,
   Trash2,
   Copy,
@@ -180,14 +179,15 @@ export default function LayersPanel({ api }: Props) {
                 </div>
               </div>
               <button
-                className="layer-lock"
+                className={`layer-lock ${layer.locked ? "is-locked" : ""}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   api.updateLayer(layer.id, { locked: !layer.locked });
                 }}
-                title={layer.locked ? "Unlock" : "Lock"}
+                title={layer.locked ? "Locked — click to unlock" : "Unlocked — click to lock"}
+                aria-pressed={layer.locked}
               >
-                {layer.locked ? <Lock size={13} /> : <LockOpen size={13} />}
+                <Lock size={13} />
               </button>
             </div>
           );

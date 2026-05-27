@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { EditorAPI } from "@/hooks/useEditor";
+import NumberPromptDialog from "@/components/UI/NumberPromptDialog";
 
 interface Props {
   api: EditorAPI;
@@ -16,8 +17,16 @@ interface Props {
 
 type Menu = "file" | "edit" | "image" | "layer" | "select" | "filter" | "view" | null;
 
+type ModifyKind = "expand" | "contract" | "feather";
+const MODIFY_META: Record<ModifyKind, { title: string; label: string; confirmLabel: string }> = {
+  expand: { title: "Expand Selection", label: "Expand by", confirmLabel: "Expand" },
+  contract: { title: "Contract Selection", label: "Contract by", confirmLabel: "Contract" },
+  feather: { title: "Feather Selection", label: "Feather radius", confirmLabel: "Feather" },
+};
+
 export default function MenuBar(p: Props) {
   const [open, setOpen] = useState<Menu>(null);
+  const [modify, setModify] = useState<ModifyKind | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
   const closeAndDo = (fn: () => void) => () => {
@@ -144,27 +153,9 @@ export default function MenuBar(p: Props) {
           disabled={!p.api.selectedLayer}
         />
         <Sep />
-        <Item
-          label="Modify › Expand…"
-          onClick={closeAndDo(() => {
-            const px = parseFloat(prompt("Expand by (px)", "4") || "0");
-            if (px > 0) p.api.expandSel(px);
-          })}
-        />
-        <Item
-          label="Modify › Contract…"
-          onClick={closeAndDo(() => {
-            const px = parseFloat(prompt("Contract by (px)", "4") || "0");
-            if (px > 0) p.api.contractSel(px);
-          })}
-        />
-        <Item
-          label="Modify › Feather…"
-          onClick={closeAndDo(() => {
-            const px = parseFloat(prompt("Feather radius (px)", "4") || "0");
-            if (px > 0) p.api.featherSel(px);
-          })}
-        />
+        <Item label="Modify › Expand…" onClick={closeAndDo(() => setModify("expand"))} />
+        <Item label="Modify › Contract…" onClick={closeAndDo(() => setModify("contract"))} />
+        <Item label="Modify › Feather…" onClick={closeAndDo(() => setModify("feather"))} />
       </Menu>
 
       <Menu name="Filter" open={open === "filter"} onOpen={() => setOpen("filter")}>
@@ -213,6 +204,25 @@ export default function MenuBar(p: Props) {
 
       <div className="menubar-spacer" />
       <div className="doc-name">{p.api.doc.name} · {p.api.doc.width} × {p.api.doc.height}</div>
+
+      {modify && (
+        <NumberPromptDialog
+          title={MODIFY_META[modify].title}
+          label={MODIFY_META[modify].label}
+          defaultValue={4}
+          min={1}
+          max={500}
+          step={1}
+          unit="px"
+          confirmLabel={MODIFY_META[modify].confirmLabel}
+          onClose={() => setModify(null)}
+          onConfirm={(px) => {
+            if (modify === "expand") p.api.expandSel(px);
+            else if (modify === "contract") p.api.contractSel(px);
+            else if (modify === "feather") p.api.featherSel(px);
+          }}
+        />
+      )}
     </div>
   );
 }
