@@ -655,7 +655,7 @@ export default function Canvas({ api, canvasOutRef }: Props) {
   }, [api, polyPoints]);
 
   return (
-    <div ref={wrapRef} className="canvas-stage" style={{ cursor, touchAction: "none", position: "relative" }}>
+    <div ref={wrapRef} className="canvas-stage" style={{ cursor, touchAction: "none" }}>
       <canvas
         ref={canvasRef}
         style={{ touchAction: "none" }}
