@@ -58,6 +58,10 @@ export default function App() {
   const [galleryFilterId, setGalleryFilterId] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
+  // When we handle Cmd+V via the keyboard shortcut, the browser still fires a
+  // `paste` event right after. Without this gate, an old OS-clipboard image
+  // would get pasted in addition to our internal selection paste.
+  const suppressNextPasteRef = useRef(false);
 
   const openGallery = useCallback((filterId?: string) => {
     setGalleryFilterId(filterId ?? null);
@@ -139,6 +143,7 @@ export default function App() {
         if (e.key.toLowerCase() === "v" && !e.shiftKey && !e.altKey) {
           if (api.hasClipboard) {
             e.preventDefault();
+            suppressNextPasteRef.current = true;
             api.pasteSelection();
             return;
           }
@@ -184,6 +189,12 @@ export default function App() {
   // Paste from clipboard
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      // Our keyboard shortcut just handled an internal selection paste — don't
+      // also paste from the OS clipboard.
+      if (suppressNextPasteRef.current) {
+        suppressNextPasteRef.current = false;
+        return;
+      }
       const items = e.clipboardData?.items;
       if (!items) return;
       for (let i = 0; i < items.length; i++) {

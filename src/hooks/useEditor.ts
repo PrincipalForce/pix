@@ -445,6 +445,11 @@ export function useEditor() {
       layers: [...d.layers, layer],
       selectedLayerId: layer.id,
     }));
+    // Drop the source marching ants — they'd otherwise sit exactly on top of
+    // the new layer and obscure it.
+    setSelection({ mask: null, bounds: null });
+    // Switch to Move tool so the user can immediately drag the pasted layer.
+    setTool("move");
     setTimeout(() => pushHistory("Paste"), 0);
   }, [doc.width, doc.height, pushHistory]);
 
