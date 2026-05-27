@@ -251,6 +251,30 @@ export default function Canvas({ api, canvasOutRef }: Props) {
     }
 
     if (api.tool === "move") {
+      // Transform handles take priority over layer hit-testing. The corners of
+      // a layer's bounding box are almost always on transparent pixels (think
+      // of a photo's corners, or a brush stroke that doesn't fill the bbox),
+      // and an alpha-aware hit test would otherwise reject those clicks and
+      // fall through to "deselect" — making handles seem broken.
+      if (api.selectedLayer && !api.selectedLayer.locked) {
+        const handle = hitTransformHandle(api, docPt, e.pointerType === "touch");
+        if (handle) {
+          dragRef.current = {
+            kind: "transform",
+            layerId: api.selectedLayer.id,
+            handle,
+            startLayer: {
+              x: api.selectedLayer.x,
+              y: api.selectedLayer.y,
+              width: api.selectedLayer.width,
+              height: api.selectedLayer.height,
+              rotation: api.selectedLayer.rotation,
+            },
+            startDoc: docPt,
+          };
+          return;
+        }
+      }
       // Hit-test the topmost visible layer at docPt
       const layer = topmostLayerAt(api, docPt.x, docPt.y);
       if (layer) {
@@ -258,26 +282,6 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         if (layer.locked) {
           // Locked: allow selection, but no move/transform drags.
           return;
-        }
-        // Check transform handles first if already selected
-        if (api.selectedLayer?.id === layer.id) {
-          const handle = hitTransformHandle(api, docPt, e.pointerType === "touch");
-          if (handle) {
-            dragRef.current = {
-              kind: "transform",
-              layerId: layer.id,
-              handle,
-              startLayer: {
-                x: layer.x,
-                y: layer.y,
-                width: layer.width,
-                height: layer.height,
-                rotation: layer.rotation,
-              },
-              startDoc: docPt,
-            };
-            return;
-          }
         }
         dragRef.current = {
           kind: "move-layer",

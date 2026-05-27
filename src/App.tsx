@@ -26,6 +26,7 @@ import { Tool } from "./types/editor";
 import { createTextLayer, createShapeLayer, renderTextLayer } from "./lib/document";
 import { Menu, PanelRight, Layers as LayersIcon, X, Trash2 } from "lucide-react";
 import { rehydrateCustomFonts } from "./lib/fonts";
+import { importPsdFile } from "./lib/importPsd";
 
 const SHORTCUTS: Record<string, Tool> = {
   v: "move",
@@ -75,6 +76,26 @@ export default function App() {
 
   const openFile = useCallback(
     (file: File) => {
+      const lower = file.name.toLowerCase();
+      const isPsd =
+        lower.endsWith(".psd") ||
+        file.type === "image/vnd.adobe.photoshop" ||
+        file.type === "application/x-photoshop";
+      if (isPsd) {
+        // PSD — parse layers via ag-psd and replace the current document.
+        importPsdFile(file)
+          .then((newDoc) => {
+            api.setDoc(newDoc);
+            setTimeout(() => api.pushHistory(`Open ${file.name}`), 0);
+          })
+          .catch((err) => {
+            console.error("PSD import failed:", err);
+            alert(
+              "Couldn't open this PSD. The file may use features Pix doesn't yet support (smart objects, adjustment layers, etc.). Try flattening in Photoshop and re-exporting."
+            );
+          });
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
@@ -413,7 +434,7 @@ export default function App() {
       <input
         id="file-open-trigger"
         type="file"
-        accept="image/*"
+        accept="image/*,.psd,application/x-photoshop,image/vnd.adobe.photoshop"
         style={{ display: "none" }}
         onChange={(e) => {
           const f = e.target.files?.[0];
