@@ -13,7 +13,7 @@ export default function ImageUpload({ onFile, compact }: Props) {
       <input
         ref={ref}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/tiff"
+        accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff,.psd"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

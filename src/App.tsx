@@ -434,7 +434,7 @@ export default function App() {
       <input
         id="file-open-trigger"
         type="file"
-        accept="image/*,.psd,application/x-photoshop,image/vnd.adobe.photoshop"
+        accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff,.psd,image/*"
         style={{ display: "none" }}
         onChange={(e) => {
           const f = e.target.files?.[0];
