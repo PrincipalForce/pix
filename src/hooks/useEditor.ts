@@ -407,6 +407,13 @@ export function useEditor() {
   const clipboardRef = useRef<{ canvas: HTMLCanvasElement; x: number; y: number } | null>(null);
   const [hasClipboard, setHasClipboard] = useState(false);
 
+  // --- Clone stamp source ---
+  // Alt-click on the canvas sets this; subsequent paint strokes sample from it.
+  // Stored in state so the UI can draw a source indicator marker.
+  const [cloneSource, setCloneSource] = useState<
+    { layerId: string; docX: number; docY: number } | null
+  >(null);
+
   const copySelection = useCallback(() => {
     if (!selectedLayer || selectedLayer.kind !== "raster" || !selection.mask) return;
     const clip = extractSelectionFromLayer(selectedLayer, selection, doc.width, doc.height);
@@ -544,6 +551,9 @@ export function useEditor() {
     cutSelection,
     pasteSelection,
     hasClipboard,
+    // Clone stamp
+    cloneSource,
+    setCloneSource,
     // History
     undo,
     redo,

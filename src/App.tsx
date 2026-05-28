@@ -35,6 +35,7 @@ const SHORTCUTS: Record<string, Tool> = {
   w: "magic-wand",
   b: "brush",
   e: "eraser",
+  s: "clone",
   g: "fill",
   i: "eyedropper",
   t: "text",

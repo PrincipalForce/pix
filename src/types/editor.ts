@@ -6,6 +6,7 @@ export type Tool =
   | "magic-wand"
   | "brush"
   | "eraser"
+  | "clone"
   | "fill"
   | "gradient"
   | "eyedropper"

@@ -86,6 +86,8 @@ export function cursorFor(
       return brushCursor(opts.brushRadiusPx ?? 5, false);
     case "eraser":
       return brushCursor(opts.brushRadiusPx ?? 10, true);
+    case "clone":
+      return brushCursor(opts.brushRadiusPx ?? 8, false);
     case "fill":
       return svgCursor(fillSvg, 12, 18, "crosshair");
     case "gradient":

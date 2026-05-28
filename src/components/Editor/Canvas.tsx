@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { EditorAPI } from "@/hooks/useEditor";
 import { compositeDocument, renderViewport, viewportToDoc } from "@/lib/render";
 import { paintSegment, fillLayer, bucketFill, createStrokeState, StrokeState, drawGradient } from "@/lib/brush";
+import { CloneStrokeState, startCloneStroke, paintCloneSegment } from "@/lib/clone";
 import {
   drawSelectionAnts,
   ellipseSelection,
@@ -56,6 +57,12 @@ type Drag =
       kind: "crop";
       startDoc: { x: number; y: number };
       currentDoc: { x: number; y: number };
+    }
+  | {
+      kind: "clone";
+      lastDoc: { x: number; y: number };
+      offsetDoc: { x: number; y: number };
+      state: CloneStrokeState;
     };
 
 type TransformHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "rot";
@@ -170,6 +177,9 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       if (marqueePreview) drawMarqueePreview(ctx, marqueePreview, api.view.zoom, antsOffset);
       if (gradPreview) drawGradientPreview(ctx, gradPreview, api.view.zoom);
       if (cropPreview) drawCropPreview(ctx, cropPreview, api.doc.width, api.doc.height, api.view.zoom);
+      if (api.tool === "clone" && api.cloneSource) {
+        drawCloneSourceMarker(ctx, api.cloneSource, api.view.zoom);
+      }
       drawSelectedLayerOverlay(ctx, api);
       ctx.restore();
     });
@@ -354,6 +364,31 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (api.tool === "clone") {
+      const target = api.selectedLayer;
+      if (!target || target.locked || target.kind !== "raster") return;
+      // Alt-click sets the clone source on the active layer.
+      if (e.altKey) {
+        api.setCloneSource({ layerId: target.id, docX: docPt.x, docY: docPt.y });
+        return;
+      }
+      if (!api.cloneSource) {
+        // No source yet — silently no-op; the OptionsBar hint tells the user.
+        return;
+      }
+      const sourceLayer = api.doc.layers.find((l) => l.id === api.cloneSource!.layerId);
+      if (!sourceLayer) return;
+      const offsetDoc = {
+        x: api.cloneSource.docX - docPt.x,
+        y: api.cloneSource.docY - docPt.y,
+      };
+      const state = startCloneStroke(sourceLayer, api.doc.width, api.doc.height);
+      paintCloneSegment(target, docPt, docPt, api.brush, offsetDoc, api.selection, state);
+      api.bump();
+      dragRef.current = { kind: "clone", lastDoc: docPt, offsetDoc, state };
+      return;
+    }
+
     if (api.tool === "gradient") {
       const sel = api.selectedLayer;
       if (!sel || sel.locked || sel.kind !== "raster") return;
@@ -493,6 +528,15 @@ export default function Canvas({ api, canvasOutRef }: Props) {
       return;
     }
 
+    if (drag.kind === "clone") {
+      const target = api.selectedLayer;
+      if (!target) return;
+      paintCloneSegment(target, drag.lastDoc, docPt, api.brush, drag.offsetDoc, api.selection, drag.state);
+      api.bump();
+      drag.lastDoc = docPt;
+      return;
+    }
+
     if (drag.kind === "crop") {
       drag.currentDoc = docPt;
       setCropPreview({ startDoc: drag.startDoc, currentDoc: docPt });
@@ -534,6 +578,8 @@ export default function Canvas({ api, canvasOutRef }: Props) {
         api.setSelection({ mask: null, bounds: null });
       }
       setMarqueePreview(null);
+    } else if (drag.kind === "clone") {
+      api.pushHistory("Clone Stamp");
     } else if (drag.kind === "gradient") {
       const sel = api.selectedLayer;
       if (sel && !sel.locked && sel.kind === "raster") {
@@ -927,6 +973,38 @@ function drawCropPreview(
   ctx.lineTo(x0 + w, y0 + h / 3);
   ctx.moveTo(x0, y0 + (2 * h) / 3);
   ctx.lineTo(x0 + w, y0 + (2 * h) / 3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCloneSourceMarker(
+  ctx: CanvasRenderingContext2D,
+  src: { docX: number; docY: number },
+  zoom: number
+) {
+  const r = 8 / zoom;
+  ctx.save();
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.strokeStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(src.docX, src.docY, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 0.8 / zoom;
+  ctx.beginPath();
+  ctx.arc(src.docX, src.docY, r, 0, Math.PI * 2);
+  ctx.stroke();
+  // Crosshair
+  ctx.beginPath();
+  ctx.moveTo(src.docX - r, src.docY);
+  ctx.lineTo(src.docX + r, src.docY);
+  ctx.moveTo(src.docX, src.docY - r);
+  ctx.lineTo(src.docX, src.docY + r);
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1.2 / zoom;
+  ctx.stroke();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 0.6 / zoom;
   ctx.stroke();
   ctx.restore();
 }

@@ -14,7 +14,7 @@ export default function OptionsBar({ api }: Props) {
     <div className="options-bar">
       <span className="ob-label">{labelFor(t)}</span>
       <div className="ob-sep" />
-      {(t === "brush" || t === "eraser") && (
+      {(t === "brush" || t === "eraser" || t === "clone") && (
         <>
           <Field label="Brush">
             <BrushPicker
@@ -74,6 +74,24 @@ export default function OptionsBar({ api }: Props) {
                 value={api.brush.color}
                 onChange={(e) => api.setBrush({ ...api.brush, color: e.target.value })}
               />
+            </Field>
+          )}
+          {t === "clone" && (
+            <Field label="Source">
+              {api.cloneSource ? (
+                <>
+                  <span style={{ color: "var(--text-mute)", fontSize: 12 }}>
+                    set at ({Math.round(api.cloneSource.docX)}, {Math.round(api.cloneSource.docY)})
+                  </span>
+                  <button className="pill" onClick={() => api.setCloneSource(null)}>
+                    Reset
+                  </button>
+                </>
+              ) : (
+                <span style={{ color: "var(--text-mute)", fontSize: 12 }}>
+                  Alt-click on a layer to set the clone source.
+                </span>
+              )}
             </Field>
           )}
         </>
@@ -158,6 +176,7 @@ function labelFor(t: string) {
     "magic-wand": "Magic Wand",
     brush: "Brush",
     eraser: "Eraser",
+    clone: "Clone Stamp",
     fill: "Paint Bucket",
     gradient: "Gradient",
     eyedropper: "Eyedropper",

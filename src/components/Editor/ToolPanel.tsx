@@ -7,6 +7,7 @@ import {
   Wand2,
   Brush,
   Eraser,
+  Stamp,
   PaintBucket,
   Pipette,
   Type,
@@ -46,6 +47,7 @@ const SECTIONS: Array<Array<{ id: Tool; Icon: any; label: string; shortcut: stri
   [
     { id: "brush", Icon: Brush, label: "Brush", shortcut: "B" },
     { id: "eraser", Icon: Eraser, label: "Eraser", shortcut: "E" },
+    { id: "clone", Icon: Stamp, label: "Clone Stamp (Alt-click to set source)", shortcut: "S" },
     { id: "fill", Icon: PaintBucket, label: "Paint Bucket", shortcut: "G" },
     { id: "gradient", Icon: Palette, label: "Gradient", shortcut: "Shift+G" },
   ],
