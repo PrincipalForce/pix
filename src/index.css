@@ -1074,6 +1074,21 @@ input[type="range"]::-moz-range-thumb {
 
 /* --- Responsive: mobile / narrow screens --------------------------------- */
 @media (max-width: 900px) {
+  /* iOS Safari auto-zooms when any focused form control has font-size < 16px.
+     Force 16px on inputs/textareas on small screens to prevent the page
+     bouncing into a zoomed view (which is hard to undo on a phone). */
+  .input,
+  textarea,
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"],
+  input[type="tel"] {
+    font-size: 16px;
+  }
+
   .app {
     grid-template-rows: 36px 40px 1fr;
   }

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pix">
+  <!-- Maskable variant: the visual content stays inside the 80% safe zone
+       (centered 410x410 area) so adaptive-icon masks on Android don't clip it.
+       The background extends to all four edges as required by the spec. -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0b1220"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <!-- Slightly smaller layered squares so the entire mark sits comfortably
+       inside any circular / squircle / rounded mask applied by the OS. -->
+  <g transform="translate(0 -8)">
+    <rect x="148" y="148" width="170" height="170" rx="28" fill="#22d3ee" opacity="0.78"/>
+    <rect x="210" y="148" width="170" height="170" rx="28" fill="#ec4899" opacity="0.78"/>
+    <rect x="179" y="210" width="170" height="170" rx="28" fill="#fbbf24" opacity="0.78"/>
+  </g>
+</svg>

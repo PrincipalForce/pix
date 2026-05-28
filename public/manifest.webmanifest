@@ -1,0 +1,27 @@
+{
+  "name": "Pix — browser image editor",
+  "short_name": "Pix",
+  "description": "Full-featured browser-based image editor with layers, masks, filters, clone stamp, PSD import/export, and an optional AI assistant.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#1e293b",
+  "categories": ["graphics", "photo", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

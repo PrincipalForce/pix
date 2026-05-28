@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Pix">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0b1220"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <!-- Three overlapping translucent layers — represents Pix's per-layer canvases
+       and the editor's transparency/blending model. Positioned inside the
+       Android maskable safe-zone (inner 410px circle from center). -->
+  <g>
+    <rect x="120" y="120" width="200" height="200" rx="32" fill="#22d3ee" opacity="0.78"/>
+    <rect x="192" y="120" width="200" height="200" rx="32" fill="#ec4899" opacity="0.78"/>
+    <rect x="156" y="192" width="200" height="200" rx="32" fill="#fbbf24" opacity="0.78"/>
+  </g>
+  <!-- Tiny brand-dot in the bottom-right corner, echoing the in-app "Pix." mark. -->
+  <circle cx="404" cy="404" r="12" fill="#60a5fa"/>
+</svg>
