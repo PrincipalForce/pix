@@ -69,7 +69,19 @@ input, select, textarea {
 .app {
   display: grid;
   grid-template-rows: 32px 36px 1fr;
+  /* When installed as a PWA on iOS, viewport-fit=cover + the translucent
+     status-bar style let the app render full-bleed. Pad with the safe-area
+     insets so the menubar sits below the iOS status bar, content doesn't
+     hide behind a notch in landscape, and the canvas clears the home
+     indicator. box-sizing: border-box makes the padding eat from 100vh so
+     the grid's 1fr row sizes correctly. */
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
   height: 100vh;
+  height: 100dvh;
   background: var(--bg-0);
 }
 
@@ -1056,9 +1068,9 @@ input[type="range"]::-moz-range-thumb {
 }
 .fab:active { transform: translateY(1px); }
 .fab[disabled] { opacity: 0.4; pointer-events: none; }
-.fab-tools { left: 12px; bottom: 14px; }
-.fab-panels { right: 12px; bottom: 14px; }
-.fab-trash { right: 70px; bottom: 14px; background: #dc2626; }
+.fab-tools { left: calc(12px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+.fab-panels { right: calc(12px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+.fab-trash { right: calc(70px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); background: #dc2626; }
 
 .mobile-backdrop {
   display: none;
