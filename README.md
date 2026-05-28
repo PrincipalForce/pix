@@ -79,7 +79,7 @@ Vite + React 18 + TypeScript. Rendering is plain HTML5 Canvas — every layer ha
 
 ```bash
 npm install --legacy-peer-deps
-npm run dev      # Vite dev server (port 80 — needs elevated privileges on Windows)
+npm run dev      # Vite dev server on http://localhost:5173
 npm run build    # type-check + production build into dist/
 npm run preview  # serve the built bundle
 ```
@@ -116,11 +116,11 @@ Everything below is for users who want to customize the source before deploying.
 
 #### Option B — Container deploy
 
-The included `Dockerfile` builds with Node and serves with Nginx on port 80.
+The included `Dockerfile` builds with Node and serves with Nginx on port **8080**.
 
 1. In Launchmatic, **New Project → Docker → From GitHub**.
 2. Point it at this repo; no extra configuration is needed — the `Dockerfile` and `nginx.conf` are picked up automatically.
-3. Set the exposed port to **80**.
+3. Container port: **8080** (already matches the Pix marketplace template).
 4. Add env vars if needed, then deploy.
 
 ### Environment variables
